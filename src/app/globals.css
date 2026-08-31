@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0c0e12;
+  --bg-raised: #14171d;
+  --ink: #eef1f4;
+  --muted: #8b93a1;
+  --accent: #2ac76c;
+  --accent-dim: #1a7a44;
+  --record: #ff453a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body), "Noto Sans SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display), "Noto Sans SC", sans-serif;
+}
+
+/* 提词器滚动动画:台词整体上移,循环 */
+@keyframes prompter-scroll {
+  0%,
+  6% {
+    transform: translateY(0);
+  }
+  20%,
+  28% {
+    transform: translateY(-2.6rem);
+  }
+  42%,
+  50% {
+    transform: translateY(-5.2rem);
+  }
+  64%,
+  72% {
+    transform: translateY(-7.8rem);
+  }
+  86%,
+  94% {
+    transform: translateY(-10.4rem);
+  }
+  100% {
+    transform: translateY(-13rem);
+  }
+}
+
+.prompter-lines {
+  animation: prompter-scroll 14s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.rec-dot {
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  opacity: 0;
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompter-lines,
+  .rec-dot,
+  .rise {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
