@@ -82,9 +82,9 @@ export default function Terms() {
       <p className="mb-4 text-[var(--muted)]">
         <a
           className="text-[var(--accent)] underline"
-          href="mailto:wangxiaounsw@gmail.com"
+          href="mailto:info@auguide.com.au"
         >
-          wangxiaounsw@gmail.com
+          info@auguide.com.au
         </a>
       </p>
     </main>

@@ -107,9 +107,9 @@ export default function Privacy() {
         Questions about this policy:{" "}
         <a
           className="text-[var(--accent)] underline"
-          href="mailto:wangxiaounsw@gmail.com"
+          href="mailto:info@auguide.com.au"
         >
-          wangxiaounsw@gmail.com
+          info@auguide.com.au
         </a>
       </p>
     </main>

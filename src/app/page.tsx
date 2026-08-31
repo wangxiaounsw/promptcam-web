@@ -199,7 +199,7 @@ export default function Home() {
             </a>
             <a
               className="hover:text-[var(--ink)]"
-              href="mailto:wangxiaounsw@gmail.com"
+              href="mailto:info@auguide.com.au"
             >
               Contact
             </a>
