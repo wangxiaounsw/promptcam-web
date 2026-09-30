@@ -129,9 +129,12 @@ export default function Home() {
             className="rise mt-9 flex flex-wrap items-center gap-4"
             style={{ animationDelay: "0.45s" }}
           >
-            <span className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-6 py-3.5 font-semibold text-[var(--bg)]">
-              Coming soon to the App Store
-            </span>
+            <a
+              href="https://apps.apple.com/au/app/prompt-cam/id6805019682"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-6 py-3.5 font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+            >
+              Download on the App Store
+            </a>
             <span className="text-sm text-[var(--muted)]">
               iPhone · Free to start
             </span>
@@ -189,7 +192,13 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-white/8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-[var(--muted)]">
-          <p>© {new Date().getFullYear()} AU GUIDE PTY LTD</p>
+          <p>
+            © {new Date().getFullYear()} AU GUIDE PTY LTD
+            <span className="mx-2">·</span>
+            <a className="hover:text-[var(--ink)]" href="https://www.fordexa.com" target="_blank" rel="noopener">
+              Powered by Fordexa
+            </a>
+          </p>
           <nav className="flex gap-6">
             <a className="hover:text-[var(--ink)]" href="/privacy">
               Privacy
