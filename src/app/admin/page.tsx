@@ -47,6 +47,11 @@ export default function AdminPage() {
   // 登录表单
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  /** 默认走密码：Supabase 默认的邮件模板里没有 {{ .Token }}，
+   *  收到的邮件只有链接、没有能填进来的 6 位码，所以验证码那条路
+   *  在模板改好之前是走不通的。 */
+  const [usePassword, setUsePassword] = useState(true);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -141,6 +146,19 @@ export default function AdminPage() {
     });
     setBusy(false);
     error ? setErr(error.message) : setSent(true);
+  };
+
+  const signInPassword = async () => {
+    if (!supabase) return;
+    setBusy(true);
+    setErr('');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setBusy(false);
+    if (error) return setErr(error.message);
+    setToken(data.session?.access_token ?? null);
   };
 
   const verify = async () => {
@@ -250,29 +268,52 @@ export default function AdminPage() {
             disabled={sent}
             onChange={(e) => setEmail(e.target.value)}
           />
-          {sent && (
+          {usePassword ? (
             <input
               className={input}
-              placeholder="邮件里的 6 位验证码"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && verify()}
+              type="password"
+              placeholder="密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && signInPassword()}
             />
+          ) : (
+            sent && (
+              <input
+                className={input}
+                placeholder="邮件里的 6 位验证码"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && verify()}
+              />
+            )
           )}
           <button
             className={btn}
             disabled={busy}
-            onClick={sent ? verify : sendCode}
+            onClick={
+              usePassword ? signInPassword : sent ? verify : sendCode
+            }
           >
-            {busy ? '…' : sent ? '登录' : '发送验证码'}
+            {busy ? '…' : usePassword ? '登录' : sent ? '登录' : '发送验证码'}
           </button>
-          {sent && (
+          <button
+            className={btnGhost}
+            onClick={() => {
+              setUsePassword(!usePassword);
+              setErr('');
+              setSent(false);
+            }}
+          >
+            {usePassword ? '改用邮箱验证码' : '改用密码'}
+          </button>
+          {!usePassword && sent && (
             <button className={btnGhost} onClick={() => setSent(false)}>
               换个邮箱
             </button>
           )}
           {err && <p className="text-sm text-[var(--record)]">{err}</p>}
-          {sent && (
+          {!usePassword && sent && (
             <p className="text-xs leading-relaxed text-[var(--muted)]">
               收到的邮件里只有链接、没有 6 位验证码？那是 Supabase 默认的
               Magic Link 模板 —— 去 Dashboard → Authentication → Emails
