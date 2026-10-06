@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { admin, configured, requestUser } from '@/lib/auth';
+import { admin, configured, missingEnv, requestUser } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const reply = (body: object, status = 200) =>
     NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-  if (!configured) return reply({ error: 'Server not configured.' }, 503);
+  if (!configured) return reply({ error: 'Server not configured.', missing: missingEnv() }, 503);
   const user = await requestUser(request);
   if (!user) return reply({ error: 'Please sign in again.' }, 401);
 

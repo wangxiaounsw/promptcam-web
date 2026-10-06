@@ -6,6 +6,22 @@ export const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 export const serviceKey = process.env.SUPABASE_SERVICE_KEY ?? '';
 export const configured = Boolean(supabaseUrl && publishableKey && serviceKey);
 
+/**
+ * 哪些环境变量还没配上。只回变量名、绝不回值 ——
+ * 否则排查一个 503 要靠反复猜「是没 redeploy 还是名字拼错了」。
+ * Vercel 的环境变量改动不会套到已有部署，必须重新部署才生效。
+ */
+export function missingEnv(): string[] {
+  return [
+    ['SUPABASE_URL', supabaseUrl],
+    ['SUPABASE_PUBLISHABLE_KEY', publishableKey],
+    ['SUPABASE_SERVICE_KEY', serviceKey],
+    ['GEMINI_API_KEY', process.env.GEMINI_API_KEY ?? ''],
+  ]
+    .filter(([, v]) => !v)
+    .map(([k]) => k as string);
+}
+
 /** 一枚临时令牌≈一个 Live 会话。客户端每 3 分钟主动轮换，所以按 180s 计量。 */
 export const SESSION_SECONDS = 180;
 

@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
-import { configured, requestUser } from '@/lib/auth';
+import { configured, missingEnv, requestUser } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 20;
@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
   const reply = (body: object, status = 200) =>
     NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-  if (!configured) return reply({ error: 'Server not configured.' }, 503);
-  if (!process.env.GEMINI_API_KEY) return reply({ error: 'Not configured.' }, 503);
+  if (!configured) return reply({ error: 'Server not configured.', missing: missingEnv() }, 503);
+  if (!process.env.GEMINI_API_KEY) return reply({ error: 'Not configured.', missing: missingEnv() }, 503);
 
   const user = await requestUser(request);
   if (!user) return reply({ error: 'Please sign in again.' }, 401);
