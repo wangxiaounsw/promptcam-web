@@ -238,8 +238,9 @@ export default function AdminPage() {
     return (
       <main className="mx-auto max-w-sm p-8">
         <h1 className="font-display mb-1 text-2xl font-bold">Fordexa 后台</h1>
-        <p className="mb-6 text-sm text-[var(--muted)]">
-          用管理员邮箱收验证码登录。
+        <p className="mb-6 text-sm leading-relaxed text-[var(--muted)]">
+          用你在 App 里登录的那个邮箱收验证码。只有被标为管理员的账号能进 ——
+          后台不开放注册。
         </p>
         <div className="space-y-3">
           <input
@@ -271,6 +272,13 @@ export default function AdminPage() {
             </button>
           )}
           {err && <p className="text-sm text-[var(--record)]">{err}</p>}
+          {sent && (
+            <p className="text-xs leading-relaxed text-[var(--muted)]">
+              收到的邮件里只有链接、没有 6 位验证码？那是 Supabase 默认的
+              Magic Link 模板 —— 去 Dashboard → Authentication → Emails
+              在模板里加一行 {"{{ .Token }}"} 就会带验证码。
+            </p>
+          )}
         </div>
       </main>
     );
