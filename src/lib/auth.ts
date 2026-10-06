@@ -22,8 +22,19 @@ export function missingEnv(): string[] {
     .map(([k]) => k as string);
 }
 
-/** 一枚临时令牌≈一个 Live 会话。客户端每 3 分钟主动轮换，所以按 180s 计量。 */
-export const SESSION_SECONDS = 180;
+/**
+ * Live 会话的**余额门槛**（不是扣费额）。
+ *
+ * 2026-10-06 修正：原来每发一枚令牌就预扣 180s，错得很具体——
+ * 一句灵感只用 5 秒也按 3 分钟扣，于是 300s 的免费额度只够一次会话，
+ * 第二次就 120 < 180 被 402 拒掉，实时转写连不上、退化成批量兜底，
+ * 表现出来就是「怎么不是流式的」。
+ *
+ * 改为照 readmemo 的口径：**live 只做余额门槛、不扣费**，
+ * 扣费交给 /transcribe 按实际音频秒数算。live 的真实成本上限由
+ * Gemini 那边 project 级的月度支出上限兜着。
+ */
+export const SESSION_MIN_SECONDS = 15;
 
 /** 绕过 RLS：profiles 只能由服务端写（否则客户能自己改 is_fordexa_client 提权）。 */
 export function admin(): SupabaseClient {

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality, AudioTranscriptionConfigMode } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
-import { admin, configured, loadProfile, missingEnv, requestUser, SESSION_SECONDS } from '@/lib/auth';
+import { configured, loadProfile, missingEnv, requestUser, SESSION_MIN_SECONDS } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -30,8 +30,10 @@ export async function POST(request: NextRequest) {
   const isClient = profile?.is_fordexa_client ?? false;
   const remaining = profile?.live_seconds_remaining ?? 0;
 
-  // fordexa 客户付的是服务费，不按秒卡；其余按配额。
-  if (!isClient && remaining < SESSION_SECONDS) {
+  // fordexa 客户付的是服务费，不按秒卡；其余只做一个低门槛。
+  // 这里**不扣费** —— 令牌可能只用 5 秒也可能用满 3 分钟，预扣必然错，
+  // 而预扣 180s 会让 300s 的免费额度只够一次会话（原来的 bug）。
+  if (!isClient && remaining < SESSION_MIN_SECONDS) {
     return reply(
       { error: 'Voice minutes used up.', code: 'no_credits', secondsRemaining: remaining },
       402,
@@ -59,19 +61,11 @@ export async function POST(request: NextRequest) {
     });
     if (!token.name) throw new Error('Missing token');
 
-    // 非客户才扣。一枚令牌 = 一个会话 ≈ 3 分钟（客户端的轮换周期）。
-    let secondsRemaining: number | null = isClient ? null : remaining - SESSION_SECONDS;
-    if (!isClient) {
-      try {
-        await admin()
-          .from('profiles')
-          .update({ live_seconds_remaining: secondsRemaining })
-          .eq('id', user.id);
-      } catch {
-        secondsRemaining = remaining; // 扣费失败不拦使用，下次再扣
-      }
-    }
-    return reply({ token: token.name, secondsRemaining, isClient });
+    return reply({
+      token: token.name,
+      secondsRemaining: isClient ? null : remaining,
+      isClient,
+    });
   } catch {
     return reply({ error: 'Live transcription unavailable, try again.' }, 502);
   }
