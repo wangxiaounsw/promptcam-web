@@ -57,6 +57,22 @@ export type Profile = {
   live_seconds_remaining: number;
 };
 
+/** 后台鉴权。is_admin 和 is_fordexa_client 一样只由服务端写 —— profiles
+ *  对客户端是只读的，否则任何客户都能把自己变成管理员。 */
+export async function requireAdmin(
+  request: NextRequest,
+): Promise<{ id: string } | null> {
+  const user = await requestUser(request);
+  if (!user) return null;
+  const { data, error } = await admin()
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error || !data?.is_admin) return null;
+  return user;
+}
+
 export async function loadProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await admin()
     .from('profiles')

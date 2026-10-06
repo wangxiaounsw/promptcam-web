@@ -15,7 +15,8 @@ const body = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.promptcam.app"),
+  // 旧域名现已 308 重定向到这里，canonical/OG 要指最终地址
+  metadataBase: new URL("https://app.fordexa.com"),
   title: "Prompt Cam — the teleprompter that never shows in your video",
   description:
     "Record talking-head videos with a scrolling script overlay that stays on your screen only. Voice-follow scrolling matches your natural speaking pace. 提词相机——台词不入镜的提词器录像机。",
