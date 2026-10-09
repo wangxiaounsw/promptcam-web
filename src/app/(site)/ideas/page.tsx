@@ -12,13 +12,13 @@ import { listPublished } from '@/lib/content';
 export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: '口播选题库 · Fordexa',
+  title: '口播库 · Fordexa',
   description:
-    '按行业整理的口播选题，每条都附参考出处。律师、会计、移民中介可以直接拿去拍视频。',
+    '按行业整理的口播稿，每条都附参考出处。律师、会计、移民中介打开 App 照着念就行。',
   alternates: { canonical: 'https://app.fordexa.com/ideas' },
   openGraph: {
-    title: '口播选题库 · Fordexa',
-    description: '按行业整理的口播选题，每条都附参考出处。',
+    title: '口播库 · Fordexa',
+    description: '按行业整理的口播稿，每条都附参考出处。',
     url: 'https://app.fordexa.com/ideas',
   },
 };
@@ -39,7 +39,7 @@ export default async function IdeasPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 pb-24 pt-16">
       <p className="mb-4 text-xs font-semibold tracking-wide text-[var(--accent)]">
-        口播选题库
+        口播库
       </p>
       <h1 className="font-display text-balance text-4xl font-bold leading-[1.2] md:text-5xl">
         该讲什么，我们已经想好了

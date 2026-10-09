@@ -165,7 +165,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 服务链：讲清各自做什么 */}
+      {/* 服务链:首页只给骨架,展开在 /how */}
       <section className="mx-auto max-w-6xl px-6 pb-24">
         <h2 className="font-display mb-3 text-3xl font-bold">怎么运作</h2>
         <p className="mb-9 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
@@ -185,6 +185,11 @@ export default function Home() {
             也不用研究平台规则。
           </Step>
         </div>
+        <p className="mt-8 text-[15px] text-[var(--muted)]">
+          <a className="font-medium text-[var(--accent)] hover:underline" href="/how">
+            稿子是怎么写出来的、为什么不写死数字 →
+          </a>
+        </p>
       </section>
 
       {/* 灵感回路:这是客户唯一需要「主动」的地方,单独讲 */}
@@ -229,7 +234,7 @@ export default function Home() {
             另外，我们也按你的行业整理了一批选题。懒得想的时候，翻一翻，
             看中哪条点一下就行。{' '}
             <a className="text-[var(--accent)] hover:underline" href="/ideas">
-              看看选题库 →
+              看看口播库 →
             </a>
           </p>
         </div>
@@ -288,36 +293,6 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-[var(--line)]">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-[var(--muted)]">
-          <p>
-            © {new Date().getFullYear()} AU GUIDE PTY LTD
-            <span className="mx-2">·</span>
-            <a
-              className="hover:text-[var(--ink)]"
-              href="https://www.fordexa.com"
-              target="_blank"
-              rel="noopener"
-            >
-              Powered by Fordexa
-            </a>
-          </p>
-          <nav className="flex gap-6">
-            <a className="hover:text-[var(--ink)]" href="/ideas">
-              选题库
-            </a>
-            <a className="hover:text-[var(--ink)]" href="/privacy">
-              隐私政策
-            </a>
-            <a className="hover:text-[var(--ink)]" href="/terms">
-              使用条款
-            </a>
-            <a className="hover:text-[var(--ink)]" href="mailto:info@auguide.com.au">
-              联系
-            </a>
-          </nav>
-        </div>
-      </footer>
     </main>
   );
 }
