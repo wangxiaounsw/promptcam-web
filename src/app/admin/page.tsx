@@ -64,6 +64,9 @@ const btnGhost =
 export default function AdminPage() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [configMissing, setConfigMissing] = useState(false);
+  /** 发信/webhook 配好了没。没配好要在后台说出来,否则你以为客户收到了 */
+  const [mailReady, setMailReady] = useState(true);
+  const [hookReady, setHookReady] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
 
@@ -106,8 +109,10 @@ export default function AdminPage() {
     let cancelled = false;
     fetch('/api/admin/config')
       .then((r) => r.json())
-      .then(async (d: { url?: string; key?: string }) => {
+      .then(async (d: { url?: string; key?: string; mail?: boolean; hook?: boolean }) => {
         if (cancelled) return;
+        setMailReady(d.mail !== false);
+        setHookReady(d.hook !== false);
         if (!d.url || !d.key) {
           setConfigMissing(true);
           setBooting(false);
@@ -393,15 +398,16 @@ export default function AdminPage() {
   const deliver = async (id: string) => {
     if (!draftTitle.trim() || !draftBody.trim()) return;
     try {
-      await api('requests', {
+      const d = await api('requests', {
         method: 'POST',
         body: JSON.stringify({ id, title: draftTitle, body: draftBody }),
       });
       setWriting(null);
       setDraftTitle('');
       setDraftBody('');
-      setNote('已送到客户的口播库');
-      setTimeout(() => setNote(''), 2500);
+      // 发信成败要说清楚:稿子一定进去了,但邮件不一定发出去
+      setNote(d.mailed ? '已送达，提醒邮件已发出' : '已送达（提醒邮件没发出）');
+      setTimeout(() => setNote(''), 4000);
       await Promise.all([loadRequests(), loadClients()]);
     } catch (e) {
       setErr((e as Error).message);
@@ -542,6 +548,23 @@ export default function AdminPage() {
       {err && (
         <p className="mb-4 rounded-lg border border-[var(--record)]/40 p-3 text-sm text-[var(--record)]">
           {err}
+        </p>
+      )}
+      {(!mailReady || !hookReady) && (
+        <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm leading-relaxed text-amber-200/90">
+          {!mailReady && (
+            <>
+              <strong>发信没配好</strong>：下发稿子时客户收不到提醒邮件。
+              去 Vercel 配 MAIL_FROM 和 RESEND_API_KEY，然后 Redeploy。
+            </>
+          )}
+          {!mailReady && !hookReady && <br />}
+          {!hookReady && (
+            <>
+              <strong>提交通知没配好</strong>：客户提交灵感时你不会收到邮件，
+              得自己来这页看。配 HOOK_SECRET + Supabase Database Webhook。
+            </>
+          )}
         </p>
       )}
 

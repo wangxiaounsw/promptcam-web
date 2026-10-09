@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { publishableKey, supabaseUrl } from '@/lib/auth';
+import { mailReady } from '@/lib/mail';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,8 @@ export const runtime = 'nodejs';
  */
 export async function GET() {
   return NextResponse.json(
-    { url: supabaseUrl, key: publishableKey },
+    // mail 只回一个布尔:后台据此提示「发信没配好,客户收不到提醒」
+    { url: supabaseUrl, key: publishableKey, mail: mailReady, hook: Boolean(process.env.HOOK_SECRET) },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

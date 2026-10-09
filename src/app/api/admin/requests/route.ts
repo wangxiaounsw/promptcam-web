@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
+import { mailScriptReady } from '@/lib/mail';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -109,5 +110,16 @@ export async function POST(request: NextRequest) {
     await db.from('scripts').delete().eq('id', script.id);
     return no({ error: 'Update failed.' }, 502);
   }
-  return no({ ok: true, scriptId: script.id }, 200);
+
+  // 通知客户。发信失败不影响交付 —— 稿子已经进他的口播库了,
+  // 打开 App 照样看得到,只是少一封提醒。所以结果只回报不抛错。
+  let mailed = false;
+  try {
+    const { data: u } = await db.auth.admin.getUserById(req.user_id);
+    const to = u?.user?.email ?? '';
+    if (to) mailed = await mailScriptReady({ to, title, body: text });
+  } catch {
+    /* 同上 */
+  }
+  return no({ ok: true, scriptId: script.id, mailed }, 200);
 }
