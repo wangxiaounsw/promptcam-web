@@ -75,6 +75,14 @@ export async function PATCH(request: NextRequest) {
   if ('industry' in body) patch.industry = body.industry ? String(body.industry) : null;
   if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
   if (typeof body.note === 'string') patch.note = body.note.trim().slice(0, 500) || null;
+  // 口播风格:给 AI 起草稿用。样本给得大方一点 —— 一段真实口播才几百字,
+  // 多放几段 AI 抓到的语感才准
+  if (typeof body.style_prompt === 'string') {
+    patch.style_prompt = body.style_prompt.trim().slice(0, 2000) || null;
+  }
+  if (typeof body.style_samples === 'string') {
+    patch.style_samples = body.style_samples.trim().slice(0, 20000) || null;
+  }
   if (!Object.keys(patch).length) return no({ error: 'Nothing to update.' }, 400);
 
   const { error } = await admin().from('organizations').update(patch).eq('id', id);

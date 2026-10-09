@@ -57,6 +57,8 @@ type Org = {
   industry: string | null;
   is_active: boolean;
   note: string | null;
+  style_prompt: string | null;
+  style_samples: string | null;
   members: number;
 };
 
@@ -140,6 +142,7 @@ export default function AdminPage() {
   const [writing, setWriting] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftBody, setDraftBody] = useState('');
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -523,6 +526,26 @@ export default function AdminPage() {
     }
   };
 
+  /** 起草稿。失败时把服务端的话原样显示 —— 「生成失败」四个字帮不上忙。 */
+  const makeDraft = async (
+    title: string,
+    orgId: string,
+    industry: string | null,
+    note: string,
+  ): Promise<string | null> => {
+    try {
+      const d = await api('draft', {
+        method: 'POST',
+        body: JSON.stringify({ title, orgId: orgId || undefined, industry, note }),
+      });
+      setErr('');
+      return (d.draft as string) ?? null;
+    } catch (e) {
+      setErr((e as Error).message);
+      return null;
+    }
+  };
+
   const industryName = (key: string | null) =>
     key ? (industries.find((i) => i.key === key)?.name_zh ?? key) : '通用';
 
@@ -569,7 +592,7 @@ export default function AdminPage() {
             sent && (
               <input
                 className={input}
-                placeholder="邮件里的 6 位验证码"
+                placeholder="邮件里的验证码"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && verify()}
@@ -603,7 +626,7 @@ export default function AdminPage() {
           {err && <p className="text-sm text-[var(--record)]">{err}</p>}
           {!usePassword && sent && (
             <p className="text-xs leading-relaxed text-[var(--muted)]">
-              收到的邮件里只有链接、没有 6 位验证码？那是 Supabase 默认的
+              收到的邮件里只有链接、没有验证码？那是 Supabase 默认的
               Magic Link 模板 —— 去 Dashboard → Authentication → Emails
               在模板里加一行 {"{{ .Token }}"} 就会带验证码。
             </p>
@@ -808,6 +831,8 @@ export default function AdminPage() {
                     {editing === b.id && (
                       <BankEditor
                         idea={b}
+                        orgs={orgs}
+                        draft={makeDraft}
                         onSave={(patch) => patchBank(b.id, patch)}
                         onDelete={() => delBank(b.id)}
                         onToggleActive={() =>
@@ -946,6 +971,33 @@ export default function AdminPage() {
                   patchOrg(o.id, { note: e.target.value })
                 }
               />
+
+              <div className="mt-4 border-t border-white/8 pt-4">
+                <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
+                  口播风格 —— 起草稿时 AI 照这个写
+                </label>
+                <textarea
+                  className={`${input} min-h-[70px] text-sm leading-relaxed`}
+                  placeholder="语速偏慢，爱举真实案例，不用网络热词，开头喜欢先讲一个客户故事……"
+                  defaultValue={o.style_prompt ?? ''}
+                  onBlur={(e) =>
+                    e.target.value !== (o.style_prompt ?? '') &&
+                    patchOrg(o.id, { style_prompt: e.target.value })
+                  }
+                />
+                <label className="mb-1.5 mt-3 block text-xs font-semibold text-[var(--muted)]">
+                  以前口播的文字稿 —— 比形容词准得多，有几段贴几段
+                </label>
+                <textarea
+                  className={`${input} min-h-[90px] text-sm leading-relaxed`}
+                  placeholder="把他们以前视频的口播文字贴进来。「专业但不端着」各人理解不同，一段真实的口播没有歧义。"
+                  defaultValue={o.style_samples ?? ''}
+                  onBlur={(e) =>
+                    e.target.value !== (o.style_samples ?? '') &&
+                    patchOrg(o.id, { style_samples: e.target.value })
+                  }
+                />
+              </div>
             </div>
           ))}
         </section>
@@ -1020,6 +1072,31 @@ export default function AdminPage() {
                     value={draftBody}
                     onChange={(e) => setDraftBody(e.target.value)}
                   />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* 这条提交来自哪个客户,就用他公司的风格 */}
+                    <button
+                      className={btnGhost}
+                      disabled={drafting}
+                      onClick={async () => {
+                        if (draftBody.trim() && !confirm('上面已经写了，生成会覆盖掉。继续？')) return;
+                        setDrafting(true);
+                        const org = clients.find((c) => c.id === r.user_id)?.org_id ?? '';
+                        const t = await makeDraft(
+                          draftTitle || r.body,
+                          org,
+                          clients.find((c) => c.id === r.user_id)?.industry ?? null,
+                          r.note ?? '',
+                        );
+                        setDrafting(false);
+                        if (t) setDraftBody(t);
+                      }}
+                    >
+                      {drafting ? '写着…' : '用 DeepSeek 起草稿'}
+                    </button>
+                    <span className="text-xs text-[var(--muted)]">
+                      按这位客户所属公司的风格写
+                    </span>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       className={btn}
@@ -1235,11 +1312,15 @@ export default function AdminPage() {
  */
 function BankEditor({
   idea,
+  orgs,
+  draft,
   onSave,
   onDelete,
   onToggleActive,
 }: {
   idea: BankIdea;
+  orgs: Org[];
+  draft: (title: string, orgId: string, industry: string | null, note: string) => Promise<string | null>;
   onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => void;
   onDelete: () => void;
   onToggleActive: () => void;
@@ -1251,6 +1332,10 @@ function BankEditor({
   const [refsText, setRefsText] = useState(
     (idea.refs ?? []).map((r) => (r.url ? `${r.label}|${r.url}` : r.label)).join('\n'),
   );
+  // 起草稿：挑一家公司就带上他们的风格，不挑就用通用骨架
+  const [styleOrg, setStyleOrg] = useState('');
+  const [brief, setBrief] = useState('');
+  const [drafting, setDrafting] = useState(false);
 
   const parsedRefs: Ref[] = refsText
     .split('\n')
@@ -1285,6 +1370,48 @@ function BankEditor({
           placeholder={'ATO — Keeping records|https://ato.gov.au/...\nTR 97/24'}
           value={refsText}
           onChange={(e) => setRefsText(e.target.value)}
+        />
+      </div>
+
+      {/* 起草稿。生成的是草稿不是成品 —— 填进下面的框，你改完再发。 */}
+      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-[var(--muted)]">
+            用 DeepSeek 起个草稿
+          </span>
+          <div className="flex-1" />
+          <select
+            className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
+            value={styleOrg}
+            onChange={(e) => setStyleOrg(e.target.value)}
+          >
+            <option value="">通用风格</option>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+                {o.style_prompt || o.style_samples ? '' : '（没设风格）'}
+              </option>
+            ))}
+          </select>
+          <button
+            className={btnGhost}
+            disabled={drafting}
+            onClick={async () => {
+              if (script.trim() && !confirm('下面已经有正文了，生成会覆盖掉。继续？')) return;
+              setDrafting(true);
+              const t = await draft(idea.title, styleOrg, idea.industry, brief);
+              setDrafting(false);
+              if (t) setScript(t);
+            }}
+          >
+            {drafting ? '写着…' : '起草稿'}
+          </button>
+        </div>
+        <input
+          className="w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm"
+          placeholder="这一条有什么特别要求？可不填。比如：重点讲第二种情况、别提具体金额"
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
         />
       </div>
 
