@@ -49,6 +49,8 @@ body {
 }
 
 /* 提词器滚动动画:台词整体上移,循环 */
+/* 一行 = 2.1rem 文字 + 0.375rem 间距 = 2.475rem。
+   每一跳刚好一行,台词才会停在阅读线上而不是卡在两行之间。 */
 @keyframes prompter-scroll {
   0%,
   6% {
@@ -56,22 +58,22 @@ body {
   }
   20%,
   28% {
-    transform: translateY(-2.6rem);
+    transform: translateY(-2.475rem);
   }
   42%,
   50% {
-    transform: translateY(-5.2rem);
+    transform: translateY(-4.95rem);
   }
   64%,
   72% {
-    transform: translateY(-7.8rem);
+    transform: translateY(-7.425rem);
   }
   86%,
   94% {
-    transform: translateY(-10.4rem);
+    transform: translateY(-9.9rem);
   }
   100% {
-    transform: translateY(-13rem);
+    transform: translateY(-12.375rem);
   }
 }
 

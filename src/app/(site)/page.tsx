@@ -23,52 +23,134 @@ const SCRIPT_LINES = [
   "具体门槛我放在评论区。",
 ];
 
-function ViewfinderCorner({ className }: { className: string }) {
+/**
+ * Hero 里的手机。画的是 App 的录制页:暗色、台词浮层、阅读线、
+ * 底部七个控件录制键居中 —— 和真机上看到的一致。
+ * 整站是浅色,这块必须是暗的,因为它就是一块正在录像的屏幕。
+ */
+function PhoneMock() {
   return (
-    <div aria-hidden className={`absolute h-7 w-7 border-[var(--line)]0 ${className}`} />
+    <div className="relative mx-auto w-full max-w-[300px]">
+      {/* 机身 */}
+      <div className="relative rounded-[2.75rem] bg-[#1b211e] p-[10px] shadow-[0_40px_90px_-30px_rgba(18,24,21,0.5)]">
+        <div className="relative aspect-[9/19.5] overflow-hidden rounded-[2.25rem] bg-[#121815]">
+          {/* 人像位:不画脸,一团暖色块暗示镜头里有人 */}
+          <div className="absolute inset-x-0 bottom-0 h-[62%] bg-[radial-gradient(ellipse_at_50%_100%,#3a4a42_0%,#1a211d_70%)]" />
+          <div className="absolute left-1/2 top-[46%] h-32 w-32 -translate-x-1/2 rounded-full bg-[#46564c]/60 blur-[2px]" />
+
+          {/* 灵动岛 */}
+          <div className="absolute left-1/2 top-2.5 h-[22px] w-[82px] -translate-x-1/2 rounded-full bg-black" />
+
+          {/* 退出 + 录制中 */}
+          <div className="absolute left-3 top-12 text-white/85">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </div>
+
+          {/* 提词浮层 */}
+          <div className="absolute inset-x-0 top-[56px] bg-black/55 px-5 pb-2 pt-3">
+            <div className="relative h-[108px] overflow-hidden">
+              <div className="prompter-lines space-y-1.5">
+                {[...SCRIPT_LINES, ...SCRIPT_LINES].map((line, i) => (
+                  <p key={i} className="h-[2.1rem] text-[12.5px] font-semibold leading-[1.35] text-white/95">
+                    {line}
+                  </p>
+                ))}
+              </div>
+              {/* 阅读线在第 2 行 —— 和 App 里一样,下面留着预读 */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-[-0.5rem] top-[2.25rem] h-[2.1rem] rounded-md border border-[#2ac76c]/45 bg-[#2ac76c]/12"
+              />
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/55 to-transparent" />
+            </div>
+            <div className="mt-1.5 flex justify-center">
+              <span className="rounded-full bg-white/15 px-2.5 py-[3px] text-[9px] text-white/80">
+                ⠿ 拖动
+              </span>
+            </div>
+          </div>
+
+          {/* 跟随中 */}
+          <div className="absolute right-3 top-[232px] flex items-center gap-1 rounded-full bg-[#2ac76c] px-2 py-[3px]">
+            <span className="rec-dot h-1.5 w-1.5 rounded-full bg-[#06210f]" />
+            <span className="text-[9px] font-semibold text-[#06210f]">跟随中</span>
+          </div>
+
+          {/* 底部控件:七项,录制键居中 */}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-5 pt-10">
+            <div className="mb-3 flex justify-center">
+              <span className="rounded-full bg-[#d42d30] px-2 py-[3px] text-[9px] font-semibold text-white">
+                ● 00:18
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              {['tune', 'top', 'mic'].map((k) => (
+                <Glyph key={k} name={k} on={k === 'mic'} />
+              ))}
+              <span className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-[2.5px] border-white">
+                <span className="h-[15px] w-[15px] rounded-[3px] bg-[#e5383b]" />
+              </span>
+              {['flip', 'guide', 'album'].map((k) => (
+                <Glyph key={k} name={k} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="mt-5 text-center text-xs text-[var(--muted)]">
+        你录的时候看到的 — 观众看不到台词
+      </p>
+    </div>
   );
 }
 
-function PrompterDemo() {
+/** 底栏图标。手画成 SVG,免得为六个小图标拉一整个图标库。 */
+function Glyph({ name, on = false }: { name: string; on?: boolean }) {
+  const c = on ? '#2ac76c' : 'rgba(255,255,255,0.9)';
+  const common = {
+    width: 17,
+    height: 17,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: c,
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
   return (
-    <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-[2rem] bg-[#121815] shadow-[0_30px_80px_-24px_rgba(18,24,21,0.45)]">
-      <ViewfinderCorner className="left-5 top-5 border-l-[3px] border-t-[3px] rounded-tl-md" />
-      <ViewfinderCorner className="right-5 top-5 border-r-[3px] border-t-[3px] rounded-tr-md" />
-      <ViewfinderCorner className="bottom-5 left-5 border-b-[3px] border-l-[3px] rounded-bl-md" />
-      <ViewfinderCorner className="bottom-5 right-5 border-b-[3px] border-r-[3px] rounded-br-md" />
-      <div className="absolute right-9 top-8 flex items-center gap-2">
-        <span className="rec-dot h-3 w-3 rounded-full bg-[var(--record)]" />
-        <span className="text-xs font-semibold tracking-widest text-white/70">REC</span>
-      </div>
-
-      <div className="px-10 pb-12 pt-20">
-        <div className="relative h-[10.4rem] overflow-hidden">
-          <div className="prompter-lines space-y-3">
-            {[...SCRIPT_LINES, ...SCRIPT_LINES].map((line, i) => (
-              <p key={i} className="h-[2.6rem] text-[15px] leading-snug text-white/25">
-                {line}
-              </p>
-            ))}
-          </div>
-          {/* 阅读线固定在第二行：下面始终留着预读，不用等文字滚到底才翻 */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-[-0.75rem] top-[2.85rem] h-[2.45rem] rounded-lg border border-[#2ac76c]/50 bg-[#2ac76c]/12"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-[#121815] to-transparent"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#121815] to-transparent"
-          />
-        </div>
-        <p className="mt-8 text-center text-xs tracking-wide text-white/45">
-          你录的时候看到的 — 观众看不到
-        </p>
-      </div>
-    </div>
+    <svg {...common} aria-hidden>
+      {name === 'tune' && (
+        <>
+          <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+          <circle cx="16" cy="7" r="2" />
+          <circle cx="10" cy="17" r="2" />
+        </>
+      )}
+      {name === 'top' && <path d="M5 4h14M12 20V8m0 0-4 4m4-4 4 4" />}
+      {name === 'mic' && (
+        <>
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+        </>
+      )}
+      {name === 'flip' && (
+        <>
+          <path d="M4 9a8 8 0 0 1 13-3M20 15a8 8 0 0 1-13 3" />
+          <path d="M4 5v4h4M20 19v-4h-4" />
+        </>
+      )}
+      {name === 'guide' && (
+        <path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4" />
+      )}
+      {name === 'album' && (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="2.5" />
+          <path d="m10 9 5 3-5 3V9Z" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -161,7 +243,7 @@ export default function Home() {
           </div>
         </div>
         <div className="rise" style={{ animationDelay: "0.35s" }}>
-          <PrompterDemo />
+          <PhoneMock />
         </div>
       </section>
 
