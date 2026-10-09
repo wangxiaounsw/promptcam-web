@@ -226,8 +226,11 @@ export default function Home() {
             ))}
           </ol>
           <p className="mt-9 text-sm leading-relaxed text-[var(--muted)]">
-            另外，我们也按你的行业整理了一批选题放在 App 里。
-            懒得想的时候，翻一翻，看中哪条点一下就行。
+            另外，我们也按你的行业整理了一批选题。懒得想的时候，翻一翻，
+            看中哪条点一下就行。{' '}
+            <a className="text-[var(--accent)] hover:underline" href="/ideas">
+              看看选题库 →
+            </a>
           </p>
         </div>
       </section>
@@ -300,6 +303,9 @@ export default function Home() {
             </a>
           </p>
           <nav className="flex gap-6">
+            <a className="hover:text-[var(--ink)]" href="/ideas">
+              选题库
+            </a>
             <a className="hover:text-[var(--ink)]" href="/privacy">
               隐私政策
             </a>

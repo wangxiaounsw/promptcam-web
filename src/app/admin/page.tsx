@@ -14,6 +14,7 @@ type Client = {
   industry: string | null;
   is_fordexa_client: boolean;
   is_admin: boolean;
+  org_id: string | null;
   live_seconds_remaining: number;
   created_at: string;
   scripts_total: number;
@@ -22,12 +23,29 @@ type Client = {
 
 type Industry = { key: string; name_zh: string; name_en: string };
 
+type Ref = { label: string; url: string };
+
 type BankIdea = {
   id: string;
+  code: string | null;
   industry: string | null;
   title: string;
+  slug: string | null;
+  summary: string | null;
+  refs: Ref[];
+  script: string | null;
   sort_order: number;
   is_active: boolean;
+  is_published: boolean;
+};
+
+type Org = {
+  id: string;
+  name: string;
+  industry: string | null;
+  is_active: boolean;
+  note: string | null;
+  members: number;
 };
 
 type IdeaRequest = {
@@ -84,6 +102,10 @@ export default function AdminPage() {
 
   // 数据
   const [clients, setClients] = useState<Client[]>([]);
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [newOrg, setNewOrg] = useState('');
+  /** 正在展开编辑的那条选题 */
+  const [editing, setEditing] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [scripts, setScripts] = useState<Script[]>([]);
   const [newTitle, setNewTitle] = useState('');
@@ -91,7 +113,7 @@ export default function AdminPage() {
   const [note, setNote] = useState('');
 
   // ── 视图 / 选题库 / 队列 ──
-  const [view, setView] = useState<'clients' | 'bank' | 'queue'>('clients');
+  const [view, setView] = useState<'clients' | 'bank' | 'queue' | 'orgs'>('clients');
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [bank, setBank] = useState<BankIdea[]>([]);
   /** 一行一条 —— 写选题是一口气列十几条，不该一条一条点保存 */
@@ -171,6 +193,35 @@ export default function AdminPage() {
     }
   }, [api]);
 
+  const loadOrgs = useCallback(async () => {
+    try {
+      const d = await api('orgs');
+      setOrgs(d.orgs ?? []);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, [api]);
+
+  const addOrg = async () => {
+    if (!newOrg.trim()) return;
+    try {
+      await api('orgs', { method: 'POST', body: JSON.stringify({ name: newOrg }) });
+      setNewOrg('');
+      await loadOrgs();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const patchOrg = async (id: string, patch: Partial<Org>) => {
+    try {
+      await api('orgs', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) });
+      await Promise.all([loadOrgs(), loadClients()]);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
   const loadBank = useCallback(async () => {
     try {
       const d = await api('bank');
@@ -198,7 +249,8 @@ export default function AdminPage() {
     // 两个数字要直接显示在标签上,所以一进来就各读一次
     loadRequests();
     loadBank();
-  }, [token, loadClients, loadIndustries, loadRequests, loadBank]);
+    loadOrgs();
+  }, [token, loadClients, loadIndustries, loadRequests, loadBank, loadOrgs]);
 
   useEffect(() => {
     if (!token) return;
@@ -531,6 +583,7 @@ export default function AdminPage() {
           ['clients', `客户 ${clients.length}`],
           ['bank', `选题库 ${bank.length || ''}`],
           ['queue', `待处理 ${openQueue || ''}`],
+          ['orgs', `公司 ${orgs.length || ''}`],
         ] as const).map(([k, label]) => (
           <button
             key={k}
@@ -651,52 +704,137 @@ export default function AdminPage() {
             return (
               <div className="space-y-2">
                 {shown.map((b) => (
-                  <div key={b.id} className={`${card} flex items-start gap-3 py-3`}>
-                    <span className="mt-0.5 shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
-                      {industryName(b.industry)}
-                    </span>
-                    {/* 点标题就能改，失焦保存 */}
-                    <input
-                      className={`flex-1 bg-transparent outline-none ${
-                        b.is_active ? '' : 'text-[var(--muted)] line-through'
-                      }`}
-                      defaultValue={b.title}
-                      onBlur={(e) =>
-                        e.target.value.trim() &&
-                        e.target.value !== b.title &&
-                        patchBank(b.id, { title: e.target.value.trim() })
-                      }
-                    />
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        className={btnGhost}
-                        title="上移"
-                        onClick={() => moveBank(b, -1)}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        className={btnGhost}
-                        title="下移"
-                        onClick={() => moveBank(b, 1)}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        className={btnGhost}
-                        onClick={() => patchBank(b.id, { is_active: !b.is_active })}
-                      >
-                        {b.is_active ? '下架' : '上架'}
-                      </button>
-                      <button className={btnGhost} onClick={() => delBank(b.id)}>
-                        删除
-                      </button>
+                  <div key={b.id} className={`${card} py-3`}>
+                    <div className="flex items-start gap-3">
+                      <span className="mt-1 shrink-0 font-mono text-[11px] text-[var(--muted)]">
+                        {b.code ?? '—'}
+                      </span>
+                      <span className="mt-0.5 shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
+                        {industryName(b.industry)}
+                      </span>
+                      {/* 点标题就能改，失焦保存 */}
+                      <input
+                        className={`flex-1 bg-transparent outline-none ${
+                          b.is_active ? '' : 'text-[var(--muted)] line-through'
+                        }`}
+                        defaultValue={b.title}
+                        onBlur={(e) =>
+                          e.target.value.trim() &&
+                          e.target.value !== b.title &&
+                          patchBank(b.id, { title: e.target.value.trim() })
+                        }
+                      />
+                      {b.is_published && (
+                        <a
+                          href={`/ideas/${b.slug ?? (b.code ?? '').toLowerCase()}`}
+                          target="_blank"
+                          rel="noopener"
+                          className="shrink-0 rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] text-[var(--accent)]"
+                        >
+                          已发布 ↗
+                        </a>
+                      )}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button className={btnGhost} onClick={() => moveBank(b, -1)}>↑</button>
+                        <button className={btnGhost} onClick={() => moveBank(b, 1)}>↓</button>
+                        <button
+                          className={btnGhost}
+                          onClick={() => setEditing(editing === b.id ? null : b.id)}
+                        >
+                          {editing === b.id ? '收起' : '编辑正文'}
+                        </button>
+                      </div>
                     </div>
+
+                    {editing === b.id && (
+                      <BankEditor
+                        idea={b}
+                        onSave={(patch) => patchBank(b.id, patch)}
+                        onDelete={() => delBank(b.id)}
+                        onToggleActive={() =>
+                          patchBank(b.id, { is_active: !b.is_active })
+                        }
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             );
           })()}
+        </section>
+      )}
+
+      {view === 'orgs' && (
+        <section className="space-y-4">
+          <div className={`${card} space-y-3`}>
+            <div>
+              <h2 className="font-display text-lg font-semibold">合作公司</h2>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+                公司「开通」后，挂在它下面的所有人都能看正文、能提交灵感 ——
+                不用一人一个账号去标。收费仍然线下开发票。
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                className={input}
+                placeholder="公司名，比如 桂冠会计"
+                value={newOrg}
+                onChange={(e) => setNewOrg(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addOrg()}
+              />
+              <button className={btn} disabled={!newOrg.trim()} onClick={addOrg}>
+                新建
+              </button>
+            </div>
+          </div>
+
+          {!orgs.length && (
+            <div className={`${card} text-[var(--muted)]`}>
+              还没有公司。个人客户继续用「客户」页的 Fordexa 客户勾选框就行。
+            </div>
+          )}
+          {orgs.map((o) => (
+            <div key={o.id} className={card}>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  className="min-w-0 flex-1 bg-transparent font-medium outline-none"
+                  defaultValue={o.name}
+                  onBlur={(e) =>
+                    e.target.value.trim() !== o.name &&
+                    patchOrg(o.id, { name: e.target.value.trim() })
+                  }
+                />
+                <span className="text-xs text-[var(--muted)]">{o.members} 人</span>
+                <select
+                  className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
+                  value={o.industry ?? ''}
+                  onChange={(e) => patchOrg(o.id, { industry: e.target.value || null })}
+                >
+                  <option value="">行业未设</option>
+                  {industries.map((i) => (
+                    <option key={i.key} value={i.key}>{i.name_zh}</option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={o.is_active}
+                    onChange={(e) => patchOrg(o.id, { is_active: e.target.checked })}
+                  />
+                  <span className={o.is_active ? 'text-[var(--accent)]' : ''}>已开通</span>
+                </label>
+              </div>
+              <input
+                className="mt-3 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                placeholder="备注：合同期、联系人、价格……只有你看得到"
+                defaultValue={o.note ?? ''}
+                onBlur={(e) =>
+                  e.target.value !== (o.note ?? '') &&
+                  patchOrg(o.id, { note: e.target.value })
+                }
+              />
+            </div>
+          ))}
         </section>
       )}
 
@@ -882,6 +1020,19 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+                <select
+                  className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
+                  value={c.org_id ?? ''}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => patchClient(c.id, { org_id: e.target.value || null })}
+                >
+                  <option value="">无公司</option>
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}{o.is_active ? '' : '（未开通）'}
+                    </option>
+                  ))}
+                </select>
                 <span className="text-xs text-[var(--muted)]">
                   配额 {Math.round(c.live_seconds_remaining / 60)} 分
                 </span>
@@ -960,5 +1111,121 @@ export default function AdminPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * 一条内容的完整编辑器。
+ *
+ * 摘要和参考文献是**公开**的（网站上路人就能看到），口播稿正文是付费可见的。
+ * 所以这两块在界面上分开标清楚 —— 写的时候就该知道哪些会被公开。
+ */
+function BankEditor({
+  idea,
+  onSave,
+  onDelete,
+  onToggleActive,
+}: {
+  idea: BankIdea;
+  onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => void;
+  onDelete: () => void;
+  onToggleActive: () => void;
+}) {
+  const [summary, setSummary] = useState(idea.summary ?? '');
+  const [script, setScript] = useState(idea.script ?? '');
+  const [slug, setSlug] = useState(idea.slug ?? '');
+  // 参考文献用「名称|网址」一行一条写，比做一堆增删按钮快得多
+  const [refsText, setRefsText] = useState(
+    (idea.refs ?? []).map((r) => (r.url ? `${r.label}|${r.url}` : r.label)).join('\n'),
+  );
+
+  const parsedRefs: Ref[] = refsText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label, url = ''] = line.split('|');
+      return { label: label.trim(), url: url.trim() };
+    })
+    .filter((r) => r.label);
+
+  return (
+    <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
+          摘要 · 公开
+        </label>
+        <textarea
+          className={`${input} min-h-[70px] leading-relaxed`}
+          placeholder="两句话说清这条讲什么。Google 和路人看到的就是这段。"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
+          参考出处 · 公开 —— 一行一条，「名称|网址」，网址可省
+        </label>
+        <textarea
+          className={`${input} min-h-[70px] font-mono text-[13px] leading-relaxed`}
+          placeholder={'ATO — Keeping records|https://ato.gov.au/...\nTR 97/24'}
+          value={refsText}
+          onChange={(e) => setRefsText(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--muted)]">
+          口播稿正文 · 付费可见 —— 客户照着念的就是这段
+        </label>
+        <textarea
+          className={`${input} min-h-[220px] leading-[1.9]`}
+          placeholder="一句一行。客户举起手机照着念这段。"
+          value={script}
+          onChange={(e) => setScript(e.target.value)}
+        />
+        <p className="mt-1.5 text-xs text-[var(--muted)]">
+          {script.replace(/\s/g, '').length} 字 · 约{' '}
+          {Math.max(10, Math.ceil(script.replace(/\s/g, '').length / 4 / 10) * 10)} 秒
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="w-56 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+          placeholder={`网址（留空用 ${(idea.code ?? '').toLowerCase()}）`}
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+        />
+        <button
+          className={btn}
+          onClick={() => onSave({ summary, script, slug, refs: parsedRefs })}
+        >
+          保存
+        </button>
+        <button
+          className={btnGhost}
+          onClick={() =>
+            onSave({
+              summary,
+              script,
+              slug,
+              refs: parsedRefs,
+              is_published: !idea.is_published,
+            })
+          }
+        >
+          {idea.is_published ? '从网站撤下' : '保存并发布到网站'}
+        </button>
+        <div className="flex-1" />
+        <button className={btnGhost} onClick={onToggleActive}>
+          {idea.is_active ? '在 App 里下架' : '在 App 里上架'}
+        </button>
+        <button className={btnGhost} onClick={onDelete}>
+          删除
+        </button>
+      </div>
+    </div>
   );
 }

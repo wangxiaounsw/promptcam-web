@@ -70,6 +70,8 @@ export async function PATCH(request: NextRequest) {
   const patch: Record<string, unknown> = {};
   if (typeof body.is_fordexa_client === 'boolean') patch.is_fordexa_client = body.is_fordexa_client;
   if (typeof body.industry === 'string') patch.industry = body.industry.slice(0, 60) || null;
+  // 挂到某家公司下面。公司开通后,它下面所有人都能看正文 —— 见 has_content_access()
+  if ('org_id' in body) patch.org_id = body.org_id ? String(body.org_id) : null;
   if (typeof body.live_seconds_remaining === 'number') {
     patch.live_seconds_remaining = Math.max(0, Math.min(360000, Math.round(body.live_seconds_remaining)));
   }

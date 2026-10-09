@@ -7,6 +7,18 @@ export const maxDuration = 30;
 const no = (body: object, status: number) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
+/**
+ * 网址片段。中文标题生成不出有意义的拉丁 slug,所以中文留空由调用方
+ * 用编号兜底(/ideas/fx-0042)—— 比硬转拼音可读性更稳。
+ */
+function slugify(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
 /** 行业选题库。客户端只读（RLS 按行业过滤），维护全在这里走 service_role。 */
 export async function GET(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
@@ -85,10 +97,45 @@ export async function PATCH(request: NextRequest) {
   if ('industry' in body) patch.industry = body.industry ? String(body.industry) : null;
   if (typeof body.sort_order === 'number') patch.sort_order = Math.round(body.sort_order);
   if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
+  if (typeof body.summary === 'string') patch.summary = body.summary.trim().slice(0, 400) || null;
+  if (typeof body.script === 'string') patch.script = body.script.trim() || null;
+  if (Array.isArray(body.refs)) {
+    // 参考文献:[{label, url}]。url 只收 http(s) —— 公开页面会把它渲染成链接
+    patch.refs = body.refs
+      .slice(0, 20)
+      .map((r) => r as { label?: unknown; url?: unknown })
+      .map((r) => ({
+        label: String(r.label ?? '').trim().slice(0, 200),
+        url: /^https?:\/\//i.test(String(r.url ?? '')) ? String(r.url) : '',
+      }))
+      .filter((r) => r.label);
+  }
+  if (typeof body.slug === 'string') patch.slug = slugify(body.slug) || null;
+  if (typeof body.is_published === 'boolean') {
+    patch.is_published = body.is_published;
+    // 第一次发布时记下时间,列表按它倒序
+    if (body.is_published) patch.published_at = new Date().toISOString();
+  }
   if (!Object.keys(patch).length) return no({ error: 'Nothing to update.' }, 400);
 
-  const { error } = await admin().from('idea_bank').update(patch).eq('id', id);
-  if (error) return no({ error: 'Update failed.' }, 502);
+  const db = admin();
+  // 要发布但还没有 slug:用编号兜底,/ideas/fx-0042 永远有效
+  if (patch.is_published === true && !patch.slug) {
+    const { data: cur } = await db
+      .from('idea_bank')
+      .select('slug, code')
+      .eq('id', id)
+      .maybeSingle();
+    if (cur && !cur.slug && cur.code) patch.slug = String(cur.code).toLowerCase();
+  }
+
+  const { error } = await db.from('idea_bank').update(patch).eq('id', id);
+  if (error) {
+    return no(
+      { error: error.message.includes('duplicate') ? '这个网址已经被占用' : 'Update failed.' },
+      502,
+    );
+  }
   return no({ ok: true }, 200);
 }
 
