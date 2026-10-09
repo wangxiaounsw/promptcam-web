@@ -44,7 +44,7 @@ export default async function IdeaPage({ params }: Props) {
         href="/ideas"
         className="text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
       >
-        ← 口播选题库
+        ← 口播库
       </Link>
 
       <div className="mt-8 flex flex-wrap items-center gap-3">
