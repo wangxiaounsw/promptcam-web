@@ -49,7 +49,7 @@ export function admin(): SupabaseClient {
  */
 export async function requestUser(
   request: NextRequest,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; email: string } | null> {
   if (!configured) return null;
   const auth = request.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) return null;
@@ -60,7 +60,7 @@ export async function requestUser(
   });
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) return null;
-  return { id: data.user.id };
+  return { id: data.user.id, email: data.user.email ?? '' };
 }
 
 export type Profile = {

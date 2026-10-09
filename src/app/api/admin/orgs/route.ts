@@ -83,6 +83,14 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.style_samples === 'string') {
     patch.style_samples = body.style_samples.trim().slice(0, 20000) || null;
   }
+  if (Array.isArray(body.email_domains)) {
+    // 公司邮箱域名:用这些邮箱登录的人自动归属这家。只收像域名的
+    patch.email_domains = [...new Set(
+      body.email_domains
+        .map((d) => String(d).trim().toLowerCase().replace(/^@/, ''))
+        .filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)),
+    )].slice(0, 10);
+  }
   if (!Object.keys(patch).length) return no({ error: 'Nothing to update.' }, 400);
 
   const { error } = await admin().from('organizations').update(patch).eq('id', id);

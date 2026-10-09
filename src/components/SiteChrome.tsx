@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import UserMenu from './UserMenu';
 
 const NAV = [
   { href: '/how', label: '怎么运作' },
@@ -28,6 +29,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex-1" />
+        <UserMenu />
         <a
           href="https://apps.apple.com/au/app/prompt-cam/id6805019682"
           className="hidden rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:inline-block"

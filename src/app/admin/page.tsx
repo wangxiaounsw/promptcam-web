@@ -37,6 +37,7 @@ type BankIdea = {
   sort_order: number;
   is_active: boolean;
   is_published: boolean;
+  is_free: boolean;
 };
 
 type AccessRequest = {
@@ -59,6 +60,7 @@ type Org = {
   note: string | null;
   style_prompt: string | null;
   style_samples: string | null;
+  email_domains: string[];
   members: number;
 };
 
@@ -1033,6 +1035,19 @@ export default function AdminPage() {
               </div>
               <input
                 className="mt-3 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                placeholder="公司邮箱域名，逗号隔开：guiguan.com.au, guiguan.com —— 用这些邮箱登录的人自动挂到这家"
+                defaultValue={(o.email_domains ?? []).join(', ')}
+                onBlur={(e) => {
+                  const next = e.target.value
+                    .split(/[,，\s]+/)
+                    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+                    .filter(Boolean);
+                  if (next.join(',') !== (o.email_domains ?? []).join(','))
+                    patchOrg(o.id, { email_domains: next });
+                }}
+              />
+              <input
+                className="mt-3 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm"
                 placeholder="备注：合同期、联系人、价格……只有你看得到"
                 defaultValue={o.note ?? ''}
                 onBlur={(e) =>
@@ -1527,6 +1542,14 @@ function BankEditor({
         >
           {idea.is_published ? '从网站撤下' : '保存并发布到网站'}
         </button>
+        <label className="flex items-center gap-1.5 text-sm" title="整篇公开，不登录也能看。用来让路人看出稿子的质量，一两条就够。">
+          <input
+            type="checkbox"
+            checked={idea.is_free}
+            onChange={(e) => onSave({ is_free: e.target.checked })}
+          />
+          <span className={idea.is_free ? 'text-[var(--accent)]' : ''}>免费样稿</span>
+        </label>
         <div className="flex-1" />
         <button className={btnGhost} onClick={onToggleActive}>
           {idea.is_active ? '在 App 里下架' : '在 App 里上架'}

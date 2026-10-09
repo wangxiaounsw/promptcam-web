@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPublished, listPublished } from '@/lib/content';
+import ScriptBody from './ScriptBody';
 import ScriptGate from './ScriptGate';
 
 export const revalidate = 600;
@@ -51,6 +52,11 @@ export default async function IdeaPage({ params }: Props) {
         <span className="rounded-full bg-[var(--row-line)] px-2.5 py-1 font-mono text-xs text-[var(--muted)]">
           {idea.code}
         </span>
+        {idea.isFree && (
+          <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 text-xs font-medium text-white">
+            免费样稿
+          </span>
+        )}
         {idea.industryName && (
           <span className="rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
             {idea.industryName}
@@ -66,7 +72,18 @@ export default async function IdeaPage({ params }: Props) {
         <p className="mt-6 text-lg leading-relaxed text-[var(--muted)]">{idea.summary}</p>
       )}
 
-      {idea.hasScript && <ScriptGate slug={idea.slug} code={idea.code} />}
+      {/* 免费样稿整篇进 HTML —— 这是故意的,让路人(和搜索引擎)看到稿子长什么样 */}
+      {idea.isFree && idea.script ? (
+        <ScriptBody script={idea.script} code={idea.code} badge="免费样稿">
+          这条是公开的样稿。其他选题的完整口播稿给 Fordexa 的客户 ——
+          <Link className="text-[var(--accent)] hover:underline" href="/login?next=%2Fideas">
+            登录
+          </Link>
+          后可以申请开通。
+        </ScriptBody>
+      ) : (
+        idea.hasScript && <ScriptGate slug={idea.slug} code={idea.code} />
+      )}
 
       {idea.refs.length > 0 && (
         <section className="mt-12">

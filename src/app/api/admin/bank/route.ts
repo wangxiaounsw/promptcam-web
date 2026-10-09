@@ -111,6 +111,7 @@ export async function PATCH(request: NextRequest) {
       .filter((r) => r.label);
   }
   if (typeof body.slug === 'string') patch.slug = slugify(body.slug) || null;
+  if (typeof body.is_free === 'boolean') patch.is_free = body.is_free;
   if (typeof body.is_published === 'boolean') {
     patch.is_published = body.is_published;
     // 第一次发布时记下时间,列表按它倒序

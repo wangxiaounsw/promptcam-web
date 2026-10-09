@@ -80,8 +80,13 @@ export default async function IdeasPage() {
                     )}
                     <p className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--muted)]">
                       {i.refs.length > 0 && <span>{i.refs.length} 条参考出处</span>}
-                      {i.hasScript && (
+                      {i.hasScript && !i.isFree && (
                         <span className="text-[var(--accent)]">含完整口播稿</span>
+                      )}
+                      {i.isFree && (
+                        <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 font-medium text-white">
+                          免费样稿 · 不登录就能看
+                        </span>
                       )}
                     </p>
                   </div>
@@ -96,11 +101,11 @@ export default async function IdeasPage() {
         <h2 className="font-display mb-3 text-xl font-semibold">想直接拿去拍？</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
           Fordexa 的客户打开 App 就能看到这些选题的完整口播稿，举起手机照着念，
-          录完发回给我们，剪辑和发布也由我们做。想聊聊写信到{' '}
-          <a className="text-[var(--accent)] hover:underline" href="mailto:info@fordexa.com">
-            info@fordexa.com
-          </a>
-          。
+          录完发回给我们，剪辑和发布也由我们做。
+          <Link className="text-[var(--accent)] hover:underline" href="/login?next=%2Fideas">
+            登录
+          </Link>
+          后可以直接申请开通，整家公司的人一起能看。
         </p>
       </div>
     </main>
