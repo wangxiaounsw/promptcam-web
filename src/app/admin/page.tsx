@@ -91,8 +91,11 @@ export default function AdminPage() {
   const [view, setView] = useState<'clients' | 'bank' | 'queue'>('clients');
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [bank, setBank] = useState<BankIdea[]>([]);
-  const [bankTitle, setBankTitle] = useState('');
+  /** 一行一条 —— 写选题是一口气列十几条，不该一条一条点保存 */
+  const [bankText, setBankText] = useState('');
   const [bankIndustry, setBankIndustry] = useState('');
+  /** 选题库的行业筛选：'' = 全部，'__none__' = 通用 */
+  const [bankFilter, setBankFilter] = useState('');
   const [requests, setRequests] = useState<IdeaRequest[]>([]);
   const [openOnly, setOpenOnly] = useState(true);
   const [writing, setWriting] = useState<string | null>(null);
@@ -187,15 +190,15 @@ export default function AdminPage() {
     if (!token) return;
     loadClients();
     loadIndustries();
-    // 队列数要在「待处理」标签上直接看到,所以一进来就读一次
+    // 两个数字要直接显示在标签上,所以一进来就各读一次
     loadRequests();
-  }, [token, loadClients, loadIndustries, loadRequests]);
+    loadBank();
+  }, [token, loadClients, loadIndustries, loadRequests, loadBank]);
 
   useEffect(() => {
     if (!token) return;
-    if (view === 'bank') loadBank();
     if (view === 'queue') loadRequests();
-  }, [token, view, loadBank, loadRequests]);
+  }, [token, view, loadRequests]);
 
   const loadScripts = useCallback(
     async (userId: string) => {
@@ -313,14 +316,45 @@ export default function AdminPage() {
   };
 
   // ── 选题库 ──
-  const addBank = async () => {
-    if (!bankTitle.trim()) return;
+  const bankLines = bankText
+    .split('\n')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const publishBank = async () => {
+    if (!bankLines.length) return;
     try {
-      await api('bank', {
+      const d = await api('bank', {
         method: 'POST',
-        body: JSON.stringify({ title: bankTitle, industry: bankIndustry || null }),
+        body: JSON.stringify({ titles: bankLines, industry: bankIndustry || null }),
       });
-      setBankTitle('');
+      setBankText('');
+      setNote(`已发布 ${d.inserted} 条`);
+      setTimeout(() => setNote(''), 2500);
+      await loadBank();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  /** 上下移动:和相邻那条换 sort_order。同一行业内才有意义。 */
+  const moveBank = async (b: BankIdea, dir: -1 | 1) => {
+    const peers = bank.filter((x) => (x.industry ?? '') === (b.industry ?? ''));
+    const i = peers.findIndex((x) => x.id === b.id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= peers.length) return;
+    const other = peers[j];
+    try {
+      await Promise.all([
+        api('bank', {
+          method: 'PATCH',
+          body: JSON.stringify({ id: b.id, sort_order: other.sort_order }),
+        }),
+        api('bank', {
+          method: 'PATCH',
+          body: JSON.stringify({ id: other.id, sort_order: b.sort_order }),
+        }),
+      ]);
       await loadBank();
     } catch (e) {
       setErr((e as Error).message);
@@ -488,9 +522,9 @@ export default function AdminPage() {
 
       <nav className="mb-5 flex gap-2">
         {([
-          ['clients', '客户'],
-          ['bank', '选题库'],
-          ['queue', `待处理${openQueue ? ` ${openQueue}` : ''}`],
+          ['clients', `客户 ${clients.length}`],
+          ['bank', `选题库 ${bank.length || ''}`],
+          ['queue', `待处理 ${openQueue || ''}`],
         ] as const).map(([k, label]) => (
           <button
             key={k}
@@ -512,19 +546,22 @@ export default function AdminPage() {
       )}
 
       {view === 'bank' && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wide text-[var(--muted)]">
-            行业选题库 —— 客户在 App 的「行业灵感」里看到这些。行业留空 = 所有客户都看得到。
-          </h2>
-          <div className={`${card} space-y-2`}>
-            <input
-              className={input}
-              placeholder="选题标题，客户直接看到这句"
-              value={bankTitle}
-              onChange={(e) => setBankTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addBank()}
+        <section className="space-y-5">
+          <div className={`${card} space-y-3`}>
+            <div>
+              <h2 className="font-display text-lg font-semibold">发布选题</h2>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+                一行一条。客户在 App 的「行业灵感」里看到这些，点一下就变成一条提交，
+                进到你的待处理队列。行业留空 = 所有客户都看得到。
+              </p>
+            </div>
+            <textarea
+              className={`${input} min-h-[140px] leading-relaxed`}
+              placeholder={'父母团聚签证到底要等多久\n收据到底要留多久\n请会计之前，先问自己三个问题'}
+              value={bankText}
+              onChange={(e) => setBankText(e.target.value)}
             />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                 value={bankIndustry}
@@ -537,40 +574,106 @@ export default function AdminPage() {
                   </option>
                 ))}
               </select>
-              <button className={btn} disabled={!bankTitle.trim()} onClick={addBank}>
-                加进选题库
+              <button className={btn} disabled={!bankLines.length} onClick={publishBank}>
+                发布 {bankLines.length || ''} 条
               </button>
+              {!industries.length && (
+                <span className="text-xs text-[var(--record)]">
+                  行业字典读不到 —— 003_industries.sql 跑了吗？
+                </span>
+              )}
             </div>
           </div>
 
-          {!bank.length && (
-            <div className={`${card} text-[var(--muted)]`}>
-              选题库还是空的。客户打开「行业灵感」会看到「这个行业的选题还在准备中」。
-            </div>
-          )}
-          {bank.map((b) => (
-            <div key={b.id} className={card}>
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
-                  {industryName(b.industry)}
-                </span>
-                <span className={`flex-1 truncate ${b.is_active ? '' : 'text-[var(--muted)] line-through'}`}>
-                  {b.title}
-                </span>
+          {/* 行业筛选 */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['', `全部 ${bank.length}`],
+              ['__none__', `通用 ${bank.filter((b) => !b.industry).length}`],
+              ...industries.map(
+                (i) =>
+                  [i.key, `${i.name_zh} ${bank.filter((b) => b.industry === i.key).length}`] as const,
+              ),
+            ].map(([k, label]) => (
+              <button
+                key={k || 'all'}
+                className={`rounded-full px-3 py-1 text-xs ${
+                  bankFilter === k
+                    ? 'bg-[var(--accent)] font-medium text-black'
+                    : 'border border-white/15 text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+                onClick={() => setBankFilter(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            const shown = bank.filter((b) =>
+              bankFilter === ''
+                ? true
+                : bankFilter === '__none__'
+                  ? !b.industry
+                  : b.industry === bankFilter,
+            );
+            if (!shown.length) {
+              return (
+                <div className={`${card} text-[var(--muted)]`}>
+                  这里还没有选题。客户打开「行业灵感」会看到
+                  「这个行业的选题还在准备中」。
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {shown.map((b) => (
+                  <div key={b.id} className={`${card} flex items-start gap-3 py-3`}>
+                    <span className="mt-0.5 shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
+                      {industryName(b.industry)}
+                    </span>
+                    {/* 点标题就能改，失焦保存 */}
+                    <input
+                      className={`flex-1 bg-transparent outline-none ${
+                        b.is_active ? '' : 'text-[var(--muted)] line-through'
+                      }`}
+                      defaultValue={b.title}
+                      onBlur={(e) =>
+                        e.target.value.trim() &&
+                        e.target.value !== b.title &&
+                        patchBank(b.id, { title: e.target.value.trim() })
+                      }
+                    />
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        className={btnGhost}
+                        title="上移"
+                        onClick={() => moveBank(b, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className={btnGhost}
+                        title="下移"
+                        onClick={() => moveBank(b, 1)}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        className={btnGhost}
+                        onClick={() => patchBank(b.id, { is_active: !b.is_active })}
+                      >
+                        {b.is_active ? '下架' : '上架'}
+                      </button>
+                      <button className={btnGhost} onClick={() => delBank(b.id)}>
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  className={btnGhost}
-                  onClick={() => patchBank(b.id, { is_active: !b.is_active })}
-                >
-                  {b.is_active ? '下架' : '上架'}
-                </button>
-                <button className={btnGhost} onClick={() => delBank(b.id)}>
-                  删除
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })()}
         </section>
       )}
 

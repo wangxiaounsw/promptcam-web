@@ -8,6 +8,9 @@
  *
  * 顺带一个现实考虑：App Store 的隐私政策链接指向本站，所以路人也可能进来。
  * 页面要明说「全部功能需要 Fordexa 客户账号」，免得有人下载后发现没有语音权限。
+ *
+ * 2026-10-09：加上灵感回路。「我们写→你念→我们剪」是单向的，
+ * 客户只是被动接收；真正留得住人的是反过来那条——他想讲什么能告诉我们。
  */
 
 /** 示例台词：故意用真实的客户场景（移民/法律咨询），而不是营销口号 */
@@ -184,6 +187,51 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 灵感回路:这是客户唯一需要「主动」的地方,单独讲 */}
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <div className="rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/[0.04] p-8 md:p-10">
+          <p className="mb-3 text-xs font-semibold tracking-wide text-[var(--accent)]">
+            反过来也行
+          </p>
+          <h2 className="font-display mb-4 text-2xl font-bold md:text-3xl">
+            你想讲什么，说一句就行
+          </h2>
+          <p className="mb-9 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+            你每天接的咨询里，哪些问题被反复问到，只有你知道。
+            想到了就打开 App 说一句 —— 不用组织语言，不用写完整。
+            剩下的调研和写稿交给我们。
+          </p>
+          <ol className="grid gap-6 sm:grid-cols-3">
+            {[
+              [
+                "说一句",
+                "从锁屏或控制中心一键打开，开口就说。自动转成文字存进灵感库 —— 你在车上、在走廊都能记。",
+              ],
+              [
+                "提交给我们",
+                "想拍成视频的那条，点「提交给 Fordexa 写稿」。可以附一句补充：想讲给谁听，有没有遇到过的真实例子。",
+              ],
+              [
+                "等它变成稿子",
+                "我们调研、核实、写成能直接念的口播稿，送回你的口播库。App 里能看到走到哪一步了。",
+              ],
+            ].map(([title, body], i) => (
+              <li key={title}>
+                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)]/15 text-sm font-semibold text-[var(--accent)]">
+                  {i + 1}
+                </div>
+                <h3 className="font-display mb-2 text-base font-semibold">{title}</h3>
+                <p className="text-sm leading-relaxed text-[var(--muted)]">{body}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-9 text-sm leading-relaxed text-[var(--muted)]">
+            另外，我们也按你的行业整理了一批选题放在 App 里。
+            懒得想的时候，翻一翻，看中哪条点一下就行。
+          </p>
+        </div>
+      </section>
+
       {/* App 里有什么 */}
       <section className="mx-auto max-w-6xl px-6 pb-24">
         <h2 className="font-display mb-8 text-3xl font-bold">App 里有什么</h2>
@@ -197,8 +245,8 @@ export default function Home() {
             网络不好时自动退回匀速滚动。
           </Feature>
           <Feature title="随口记灵感">
-            想到一个话题，从控制中心或锁屏一键打开就说一句，自动转成文字存下来，
-            之后一键做成口播稿。
+            想到一个话题，从控制中心或锁屏一键打开就说一句，自动转成文字存下来。
+            自己改成稿子，或者交给我们写。
           </Feature>
           <Feature title="眼神贴住镜头">
             提词窗口可以拖到正对前摄的位置，当前要念的那行固定在阅读线上，

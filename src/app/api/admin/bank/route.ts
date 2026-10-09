@@ -20,28 +20,50 @@ export async function GET(request: NextRequest) {
   return no({ bank: data ?? [] }, 200);
 }
 
-/** 加一条选题。industry 留空 = 所有客户都看得到的通用选题。 */
+/**
+ * 发布选题。titles 一行一条 —— 写选题的时候是一口气列十几条，
+ * 一条一条点「保存」没人受得了。industry 留空 = 所有客户都看得到的通用选题。
+ * sort_order 接着这个行业现有的最大值往后排，新加的排在后面。
+ */
 export async function POST(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
   if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
 
-  let body: { title?: string; industry?: string | null; sort_order?: number };
+  let body: { titles?: string[]; title?: string; industry?: string | null };
   try {
     body = await request.json();
   } catch {
     return no({ error: 'Bad request.' }, 400);
   }
-  const title = (body.title ?? '').trim().slice(0, 200);
-  if (!title) return no({ error: 'Missing title.' }, 400);
+  const industry = body.industry ? String(body.industry) : null;
+  const titles = (body.titles ?? (body.title ? [body.title] : []))
+    .map((t) => String(t).trim().slice(0, 200))
+    .filter(Boolean);
+  if (!titles.length) return no({ error: '没有可发布的选题。' }, 400);
+  if (titles.length > 100) return no({ error: '一次最多 100 条。' }, 400);
 
-  const { error } = await admin().from('idea_bank').insert({
-    title,
-    industry: body.industry ? String(body.industry) : null,
-    sort_order: typeof body.sort_order === 'number' ? Math.round(body.sort_order) : 0,
-  });
+  const db = admin();
+  // 同一行业里接着往后排
+  let base = 0;
+  const { data: last } = await (industry
+    ? db.from('idea_bank').select('sort_order').eq('industry', industry)
+    : db.from('idea_bank').select('sort_order').is('industry', null)
+  )
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (last?.length) base = (last[0].sort_order ?? 0) + 1;
+
+  const { error } = await db
+    .from('idea_bank')
+    .insert(titles.map((title, i) => ({ title, industry, sort_order: base + i })));
   // 外键报错 = 行业 key 拼错了，说清楚比给个 502 有用
-  if (error) return no({ error: error.message.includes('foreign key') ? '行业不存在' : '保存失败' }, 502);
-  return no({ ok: true }, 200);
+  if (error) {
+    return no(
+      { error: error.message.includes('foreign key') ? '行业不存在' : '保存失败' },
+      502,
+    );
+  }
+  return no({ ok: true, inserted: titles.length }, 200);
 }
 
 /** 改一条（标题/行业/排序/上下架）。 */
