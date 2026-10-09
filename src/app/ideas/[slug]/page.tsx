@@ -48,11 +48,11 @@ export default async function IdeaPage({ params }: Props) {
       </Link>
 
       <div className="mt-8 flex flex-wrap items-center gap-3">
-        <span className="rounded-full bg-white/10 px-2.5 py-1 font-mono text-xs text-[var(--muted)]">
+        <span className="rounded-full bg-[var(--row-line)] px-2.5 py-1 font-mono text-xs text-[var(--muted)]">
           {idea.code}
         </span>
         {idea.industryName && (
-          <span className="rounded-full bg-[var(--accent)]/15 px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
+          <span className="rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
             {idea.industryName}
           </span>
         )}

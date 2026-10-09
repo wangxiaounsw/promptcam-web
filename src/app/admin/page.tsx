@@ -129,7 +129,9 @@ export default function AdminPage() {
 
   // ── 视图 / 选题库 / 队列 ──
   const [view, setView] =
-    useState<'clients' | 'bank' | 'queue' | 'orgs' | 'applies'>('clients');
+    useState<'clients' | 'bank' | 'queue' | 'orgs' | 'applies' | 'prompt'>(
+      'clients',
+    );
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [bank, setBank] = useState<BankIdea[]>([]);
   /** 一行一条 —— 写选题是一口气列十几条，不该一条一条点保存 */
@@ -143,6 +145,8 @@ export default function AdminPage() {
   const [draftTitle, setDraftTitle] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [drafting, setDrafting] = useState(false);
+  const [promptText, setPromptText] = useState('');
+  const [defaultPrompt, setDefaultPrompt] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +213,29 @@ export default function AdminPage() {
       /* 下拉框读不到就退回只读显示，不挡住别的操作 */
     }
   }, [api]);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const d = await api('settings');
+      setPromptText((d.draftPrompt as string) || (d.defaultPrompt as string) || '');
+      setDefaultPrompt((d.defaultPrompt as string) ?? '');
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, [api]);
+
+  const savePrompt = async () => {
+    try {
+      await api('settings', {
+        method: 'PUT',
+        body: JSON.stringify({ draftPrompt: promptText }),
+      });
+      setNote('提示词已保存，下次起草稿就用新的');
+      setTimeout(() => setNote(''), 3000);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
 
   const loadApplies = useCallback(async () => {
     try {
@@ -302,6 +329,7 @@ export default function AdminPage() {
     loadBank();
     loadOrgs();
     loadApplies();
+    loadSettings();
   }, [
     token,
     loadClients,
@@ -310,6 +338,7 @@ export default function AdminPage() {
     loadBank,
     loadOrgs,
     loadApplies,
+    loadSettings,
   ]);
 
   useEffect(() => {
@@ -666,6 +695,7 @@ export default function AdminPage() {
           ['queue', `待处理 ${openQueue || ''}`],
           ['orgs', `公司 ${orgs.length || ''}`],
           ['applies', `申请 ${pendingApplies || ''}`],
+          ['prompt', '提示词'],
         ] as const).map(([k, label]) => (
           <button
             key={k}
@@ -845,6 +875,45 @@ export default function AdminPage() {
               </div>
             );
           })()}
+        </section>
+      )}
+
+      {view === 'prompt' && (
+        <section className="space-y-3">
+          <div className={`${card} space-y-3`}>
+            <div>
+              <h2 className="font-display text-lg font-semibold">起草稿的提示词</h2>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+                所有「起草稿」都先读这一段，再接上那家公司自己的风格。
+                改完立刻生效，不用重新部署 —— 写稿风格是要反复调才会变好的东西。
+              </p>
+            </div>
+            <textarea
+              className={`${input} min-h-[420px] font-mono text-[13px] leading-relaxed`}
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button className={btn} onClick={savePrompt}>保存</button>
+              <button
+                className={btnGhost}
+                onClick={() => {
+                  if (confirm('恢复成默认那一版？你现在改的会被覆盖。')) {
+                    setPromptText(defaultPrompt);
+                  }
+                }}
+              >
+                恢复默认
+              </button>
+              <span className="text-xs text-[var(--muted)]">{promptText.length} 字</span>
+            </div>
+          </div>
+          <div className={`${card} text-sm leading-relaxed text-[var(--muted)]`}>
+            <strong className="text-[var(--ink)]">有一条别删：</strong>
+            「不要写死金额、比例、年份、门槛数字」。这类规定每年都在变，
+            写死了过几个月就是错的 —— 而且那是客户本人对着镜头说出去的，
+            是他的执业责任，不是你的。
+          </div>
         </section>
       )}
 

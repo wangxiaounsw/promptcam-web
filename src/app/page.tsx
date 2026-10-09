@@ -25,13 +25,13 @@ const SCRIPT_LINES = [
 
 function ViewfinderCorner({ className }: { className: string }) {
   return (
-    <div aria-hidden className={`absolute h-7 w-7 border-white/80 ${className}`} />
+    <div aria-hidden className={`absolute h-7 w-7 border-[var(--line)]0 ${className}`} />
   );
 }
 
 function PrompterDemo() {
   return (
-    <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-[2rem] border border-white/10 bg-[var(--bg-raised)] shadow-[0_40px_120px_-30px_rgba(42,199,108,0.25)]">
+    <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-[2rem] bg-[#121815] shadow-[0_30px_80px_-24px_rgba(18,24,21,0.45)]">
       <ViewfinderCorner className="left-5 top-5 border-l-[3px] border-t-[3px] rounded-tl-md" />
       <ViewfinderCorner className="right-5 top-5 border-r-[3px] border-t-[3px] rounded-tr-md" />
       <ViewfinderCorner className="bottom-5 left-5 border-b-[3px] border-l-[3px] rounded-bl-md" />
@@ -53,18 +53,18 @@ function PrompterDemo() {
           {/* 阅读线固定在第二行：下面始终留着预读，不用等文字滚到底才翻 */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-[-0.75rem] top-[2.85rem] h-[2.45rem] rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10"
+            className="pointer-events-none absolute inset-x-[-0.75rem] top-[2.85rem] h-[2.45rem] rounded-lg border border-[#2ac76c]/50 bg-[#2ac76c]/12"
           />
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-[var(--bg-raised)] to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-[#121815] to-transparent"
           />
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg-raised)] to-transparent"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#121815] to-transparent"
           />
         </div>
-        <p className="mt-8 text-center text-xs tracking-wide text-[var(--muted)]">
+        <p className="mt-8 text-center text-xs tracking-wide text-white/45">
           你录的时候看到的 — 观众看不到
         </p>
       </div>
@@ -85,7 +85,7 @@ function Step({
 }) {
   const mine = who === "Fordexa";
   return (
-    <div className="rounded-2xl border border-white/8 bg-[var(--bg-raised)] p-7">
+    <div className="rounded-2xl bg-[var(--bg-raised)] p-7">
       <div className="mb-4 flex items-baseline justify-between">
         <span className="font-display text-sm font-semibold text-[var(--accent)]">
           {num}
@@ -93,8 +93,8 @@ function Step({
         <span
           className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
             mine
-              ? "bg-[var(--accent)]/15 text-[var(--accent)]"
-              : "bg-white/10 text-[var(--ink)]"
+              ? "bg-[var(--accent-tint)] text-[var(--accent)]"
+              : "bg-[var(--row-line)] text-[var(--muted)]"
           }`}
         >
           {mine ? "我们做" : "你做"}
@@ -108,7 +108,7 @@ function Step({
 
 function Feature({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/8 p-6">
+    <div className="rounded-xl bg-[var(--bg-raised)] p-6">
       <h3 className="font-display mb-2 text-base font-semibold">{title}</h3>
       <p className="text-sm leading-relaxed text-[var(--muted)]">{children}</p>
     </div>
@@ -122,7 +122,7 @@ export default function Home() {
       <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-20 md:grid-cols-2 md:pt-28">
         <div>
           <p
-            className="rise mb-5 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-[var(--accent)]"
+            className="rise mb-5 inline-block rounded-full bg-[var(--accent-tint)] px-4 py-1.5 text-xs font-semibold tracking-wide text-[var(--accent)]"
             style={{ animationDelay: "0.05s" }}
           >
             Fordexa 口播助手
@@ -189,7 +189,7 @@ export default function Home() {
 
       {/* 灵感回路:这是客户唯一需要「主动」的地方,单独讲 */}
       <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/[0.04] p-8 md:p-10">
+        <div className="rounded-2xl bg-[var(--accent-tint)] p-8 md:p-10">
           <p className="mb-3 text-xs font-semibold tracking-wide text-[var(--accent)]">
             反过来也行
           </p>
@@ -217,7 +217,7 @@ export default function Home() {
               ],
             ].map(([title, body], i) => (
               <li key={title}>
-                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)]/15 text-sm font-semibold text-[var(--accent)]">
+                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-raised)] text-sm font-semibold text-[var(--accent)]">
                   {i + 1}
                 </div>
                 <h3 className="font-display mb-2 text-base font-semibold">{title}</h3>
@@ -260,7 +260,7 @@ export default function Home() {
 
       {/* 不是客户的人进来了 */}
       <section className="mx-auto max-w-3xl px-6 pb-24">
-        <div className="rounded-2xl border border-white/8 bg-[var(--bg-raised)] p-8">
+        <div className="rounded-2xl bg-[var(--bg-raised)] p-8">
           <h2 className="font-display mb-3 text-xl font-semibold">
             还不是 Fordexa 客户？
           </h2>
@@ -288,7 +288,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-white/8">
+      <footer className="border-t border-[var(--line)]">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-[var(--muted)]">
           <p>
             © {new Date().getFullYear()} AU GUIDE PTY LTD

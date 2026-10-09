@@ -1,13 +1,36 @@
 @import "tailwindcss";
 
+/* 和 App 的设计令牌对齐(prompter/lib/theme.dart 的 T.*)。
+   网站和 App 是同一个产品,不该一个暗一个亮。 */
 :root {
+  --bg: #f2f4f3;
+  --bg-raised: #ffffff;
+  --ink: #121815;
+  --muted: #55605a;
+  --line: #dfe4e1;
+  --row-line: #e8ecea;
+  --accent: #0f7b45;
+  --accent-tint: #e2f2e9;
+  --accent-dim: #0b5c33;
+  --record: #b3261e;
+}
+
+/* 后台是内部工具,保留暗色 —— 它是长时间盯着改稿子的地方,
+   而且整页都是表单,浅色反而晃眼。只在这一棵子树里把令牌换回去。 */
+.admin-dark {
   --bg: #0c0e12;
   --bg-raised: #14171d;
   --ink: #eef1f4;
   --muted: #8b93a1;
+  --line: rgb(255 255 255 / 0.1);
+  --row-line: rgb(255 255 255 / 0.08);
   --accent: #2ac76c;
+  --accent-tint: rgb(42 199 108 / 0.15);
   --accent-dim: #1a7a44;
   --record: #ff453a;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
 }
 
 html {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
+import { DEFAULT_PROMPT } from '@/lib/draft-prompt';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -7,21 +8,6 @@ export const maxDuration = 60;
 const no = (body: object, status: number) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-/** 口播稿的通用骨架。风格由各家公司自己覆盖,这里只管「是不是一条能念的口播」。 */
-const BASE = `你在给澳洲的专业服务从业者（律师、会计、移民中介这类）写一条短视频口播稿。
-他会举起手机，照着你写的字一句一句念出来。所以：
-
-- 写的是**说出来的话**，不是文章。没有小标题、没有项目符号、没有"综上所述"。
-- 一句一行，一行一个意思。句子短，念起来不打结。
-- 开头第一句就是客户真会说的那句话或那个疑问，不要"今天我们来聊聊"。
-- 中间给具体的、可执行的内容。宁可只讲三点讲透，不要罗列八点。
-- **不要写死金额、比例、年份、门槛数字**。这类规定会变，写死了过几个月就是错的，
-  而且说错了是他本人的执业责任。需要具体数字的地方，改成"具体门槛我放在评论区"这类说法。
-- 结尾是一个问句或一个轻的行动建议，不要"有问题欢迎咨询"。
-- 全程第一人称，像在跟一个坐在对面的客户说话。
-- 60 到 90 秒的量，大约 250 到 350 个字。
-
-只输出口播稿正文本身。不要标题，不要解释，不要任何前言后语。`;
 
 /**
  * 用 AI 起一个口播稿草稿。
@@ -29,6 +15,21 @@ const BASE = `你在给澳洲的专业服务从业者（律师、会计、移民
  * 这是**草稿**，不是成品 —— 后台生成完直接填进编辑框，由 Shawn 改完再发。
  * 所以这里不做任何自动发布，也不写库。
  */
+/** 后台改过就用改过的,没改过用默认值。读失败也退回默认 —— 不能因此写不了稿。 */
+async function loadPrompt(): Promise<string> {
+  try {
+    const { data } = await admin()
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'draft_prompt')
+      .maybeSingle();
+    const v = (data?.value ?? '').trim();
+    return v || DEFAULT_PROMPT;
+  } catch {
+    return DEFAULT_PROMPT;
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
   if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: BASE },
+          { role: 'system', content: await loadPrompt() },
           { role: 'user', content: prompt },
         ],
         // 口播要有人味,温度给高一点;但别太高,免得编出不存在的规定

@@ -63,7 +63,7 @@ export default async function IdeasPage() {
               <Link
                 key={i.code}
                 href={`/ideas/${i.slug}`}
-                className="block rounded-xl border border-white/8 bg-[var(--bg-raised)] p-5 transition-colors hover:border-[var(--accent)]/40"
+                className="block block rounded-2xl bg-[var(--bg-raised)] p-5 transition-shadow hover:shadow-[0_8px_24px_-12px_rgba(18,24,21,0.18)]"
               >
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 shrink-0 font-mono text-xs text-[var(--muted)]">
@@ -92,7 +92,7 @@ export default async function IdeasPage() {
         </section>
       ))}
 
-      <div className="mt-20 rounded-2xl border border-white/8 bg-[var(--bg-raised)] p-8">
+      <div className="mt-20 rounded-2xl bg-[var(--bg-raised)] p-8">
         <h2 className="font-display mb-3 text-xl font-semibold">想直接拿去拍？</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
           Fordexa 的客户打开 App 就能看到这些选题的完整口播稿，举起手机照着念，
