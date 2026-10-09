@@ -39,6 +39,18 @@ type BankIdea = {
   is_published: boolean;
 };
 
+type AccessRequest = {
+  id: string;
+  user_id: string;
+  email: string;
+  company: string;
+  contact: string | null;
+  note: string | null;
+  status: 'pending' | 'approved' | 'declined';
+  reply: string | null;
+  created_at: string;
+};
+
 type Org = {
   id: string;
   name: string;
@@ -104,6 +116,7 @@ export default function AdminPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [newOrg, setNewOrg] = useState('');
+  const [applies, setApplies] = useState<AccessRequest[]>([]);
   /** 正在展开编辑的那条选题 */
   const [editing, setEditing] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -113,7 +126,8 @@ export default function AdminPage() {
   const [note, setNote] = useState('');
 
   // ── 视图 / 选题库 / 队列 ──
-  const [view, setView] = useState<'clients' | 'bank' | 'queue' | 'orgs'>('clients');
+  const [view, setView] =
+    useState<'clients' | 'bank' | 'queue' | 'orgs' | 'applies'>('clients');
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [bank, setBank] = useState<BankIdea[]>([]);
   /** 一行一条 —— 写选题是一口气列十几条，不该一条一条点保存 */
@@ -193,6 +207,40 @@ export default function AdminPage() {
     }
   }, [api]);
 
+  const loadApplies = useCallback(async () => {
+    try {
+      const d = await api('access-requests');
+      setApplies(d.requests ?? []);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, [api]);
+
+  /** 通过 = 建/复用公司 + 挂人 + 开通公司 + 本人标成客户,四件事一起做 */
+  const handleApply = async (r: AccessRequest, approve: boolean) => {
+    const reply = approve
+      ? undefined
+      : prompt('给他一句说明（可留空）：', r.reply ?? '');
+    if (!approve && reply === null) return;
+    try {
+      const d = await api('access-requests', {
+        method: 'POST',
+        body: JSON.stringify({ id: r.id, approve, reply }),
+      });
+      setNote(
+        approve
+          ? d.mailed
+            ? '已开通，通知邮件已发出'
+            : '已开通（通知邮件没发出）'
+          : '已拒绝',
+      );
+      setTimeout(() => setNote(''), 4000);
+      await Promise.all([loadApplies(), loadClients(), loadOrgs()]);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
   const loadOrgs = useCallback(async () => {
     try {
       const d = await api('orgs');
@@ -250,7 +298,16 @@ export default function AdminPage() {
     loadRequests();
     loadBank();
     loadOrgs();
-  }, [token, loadClients, loadIndustries, loadRequests, loadBank, loadOrgs]);
+    loadApplies();
+  }, [
+    token,
+    loadClients,
+    loadIndustries,
+    loadRequests,
+    loadBank,
+    loadOrgs,
+    loadApplies,
+  ]);
 
   useEffect(() => {
     if (!token) return;
@@ -560,6 +617,7 @@ export default function AdminPage() {
   const openQueue = requests.filter(
     (r) => r.status === 'submitted' || r.status === 'in_progress',
   ).length;
+  const pendingApplies = applies.filter((a) => a.status === 'pending').length;
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -584,6 +642,7 @@ export default function AdminPage() {
           ['bank', `选题库 ${bank.length || ''}`],
           ['queue', `待处理 ${openQueue || ''}`],
           ['orgs', `公司 ${orgs.length || ''}`],
+          ['applies', `申请 ${pendingApplies || ''}`],
         ] as const).map(([k, label]) => (
           <button
             key={k}
@@ -761,6 +820,60 @@ export default function AdminPage() {
               </div>
             );
           })()}
+        </section>
+      )}
+
+      {view === 'applies' && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold tracking-wide text-[var(--muted)]">
+            申请开通。通过一下就同时建好公司、挂上人、开通权限。
+          </h2>
+          {!applies.length && (
+            <div className={`${card} text-[var(--muted)]`}>还没有人申请。</div>
+          )}
+          {applies.map((a) => (
+            <div key={a.id} className={card}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{a.company}</span>
+                <div className="flex-1" />
+                <span className="text-xs text-[var(--muted)]">
+                  {new Date(a.created_at).toLocaleDateString('zh-CN')}
+                </span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] ${
+                    a.status === 'approved'
+                      ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
+                      : 'bg-white/10'
+                  }`}
+                >
+                  {a.status === 'pending'
+                    ? '待处理'
+                    : a.status === 'approved'
+                      ? '已开通'
+                      : '已拒绝'}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {a.contact ? `${a.contact} · ` : ''}
+                {a.email}
+              </p>
+              {a.note && (
+                <p className="mt-3 border-l-2 border-white/15 pl-3 text-sm text-[var(--muted)]">
+                  {a.note}
+                </p>
+              )}
+              {a.status === 'pending' && (
+                <div className="mt-3 flex gap-2">
+                  <button className={btn} onClick={() => handleApply(a, true)}>
+                    通过并开通
+                  </button>
+                  <button className={btnGhost} onClick={() => handleApply(a, false)}>
+                    拒绝
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </section>
       )}
 

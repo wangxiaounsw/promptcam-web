@@ -75,6 +75,57 @@ export function mailScriptReady(opts: {
   });
 }
 
+/** 有人申请成为企业用户。reply_to 设成他的邮箱,你直接回信就能聊。 */
+export function mailAccessRequested(opts: {
+  from: string;
+  company: string;
+  contact?: string | null;
+  note?: string | null;
+}): Promise<boolean> {
+  if (!ADMIN) return Promise.resolve(false);
+  return send({
+    to: ADMIN,
+    replyTo: opts.from || undefined,
+    subject: `申请开通：${opts.company}`,
+    html: shell(`
+<p style="margin:0 0 6px;font-size:13px;color:#0f7b45;font-weight:700">申请成为企业用户</p>
+<h1 style="margin:0 0 6px;font-size:20px;line-height:1.4">${esc(opts.company)}</h1>
+<p style="margin:0 0 18px;font-size:13px;color:#55605a">
+  ${esc(opts.contact || '')}${opts.contact ? ' · ' : ''}${esc(opts.from || '未知账号')}
+</p>
+${
+  opts.note
+    ? `<p style="margin:0 0 18px;padding-left:14px;border-left:3px solid #e8ecea;color:#55605a">
+         ${esc(opts.note)}
+       </p>`
+    : ''
+}
+<p style="margin:0">
+  <a href="https://app.fordexa.com/admin"
+     style="display:inline-block;background:#0f7b45;color:#fff;text-decoration:none;
+            padding:12px 22px;border-radius:10px;font-weight:600">去后台处理</a>
+</p>`),
+  });
+}
+
+/** 申请通过了,通知申请人。 */
+export function mailAccessApproved(opts: { to: string; company: string }): Promise<boolean> {
+  return send({
+    to: opts.to,
+    subject: '你的 Fordexa 口播助手已开通',
+    html: shell(`
+<p style="margin:0 0 6px;font-size:13px;color:#0f7b45;font-weight:700">已开通</p>
+<h1 style="margin:0 0 14px;font-size:22px;line-height:1.35">${esc(opts.company)}</h1>
+<p style="margin:0 0 8px">打开「Fordexa 口播助手」重新进一次，你会看到：</p>
+<ul style="margin:0 0 20px;padding-left:20px;color:#55605a">
+  <li>按你行业整理好的口播选题，写好的拿了就能录</li>
+  <li>想讲什么可以直接提交给我们，我们调研、写成稿子送回来</li>
+  <li>语音跟随滚动 —— 它听着你说，按你的语速滚</li>
+</ul>
+<p style="margin:0;color:#55605a">同事用同一家公司的邮箱注册，告诉我们一声就一起开通，不用一人一个账号。</p>`),
+  });
+}
+
 /** 客户提交了灵感,通知 Fordexa。reply_to 设成客户邮箱,直接回信就能问他。 */
 export function mailIdeaSubmitted(opts: {
   from: string;
