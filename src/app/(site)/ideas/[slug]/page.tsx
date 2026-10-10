@@ -78,6 +78,7 @@ export default async function IdeaPage({ params }: Props) {
         ))}
         {idea.publishedAt && (
           <span className="text-xs text-[var(--muted)]">
+            发布时间：
             {new Date(idea.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
           </span>
         )}

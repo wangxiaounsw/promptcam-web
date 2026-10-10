@@ -301,7 +301,8 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
                   )}
                   {i.publishedAt && (
                     <time dateTime={i.publishedAt}>
-                      {new Date(i.publishedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                      发布时间：
+                      {new Date(i.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </time>
                   )}
                 </div>
