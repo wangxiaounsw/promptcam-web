@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import type { NextRequest } from 'next/server';
 
 import { admin, configured, requestUser } from '@/lib/auth';
@@ -198,4 +199,15 @@ export async function getPublished(
     .or(`slug.eq.${key},code.eq.${key.toUpperCase()}`)
     .maybeSingle();
   return data ? toPublic(data as Row, names, allowed) : null;
+}
+
+/**
+ * 后台改了会影响公开页面的东西(发布/撤下/免费/朗读/删除)就调一下,
+ * 列表和详情页立刻重新生成 —— 否则要等 ISR 的 10 分钟,
+ * 「点了发布网站上没有」看起来像坏了。
+ */
+export function revalidateIdea(slug?: string | null) {
+  revalidatePath('/ideas');
+  revalidatePath('/sitemap.xml');
+  if (slug) revalidatePath(`/ideas/${slug}`);
 }

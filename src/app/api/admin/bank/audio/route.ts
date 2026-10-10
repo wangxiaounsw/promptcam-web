@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
 import { scriptHash, storeAudio, synthesize, ttsReady } from '@/lib/tts';
+import { revalidateIdea } from '@/lib/content';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
   const db = admin();
   const { data: idea } = await db
     .from('idea_bank')
-    .select('code, script, audio_url, audio_script_hash')
+    .select('code, slug, script, audio_url, audio_script_hash, is_published')
     .eq('id', id)
     .maybeSingle();
   if (!idea) return no({ error: 'Not found.' }, 404);
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       .update({ audio_url: url, audio_script_hash: hash, audio_at: new Date().toISOString() })
       .eq('id', id);
     if (error) return no({ error: '存链接失败' }, 502);
+    if (idea.is_published) revalidateIdea(idea.slug);
     return no({ ok: true, url, bytes: mp3.length }, 200);
   } catch (e) {
     return no({ error: (e as Error).message }, 502);

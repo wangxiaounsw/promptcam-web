@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
 import { scriptHash } from '@/lib/tts';
+import { revalidateIdea } from '@/lib/content';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -138,13 +139,20 @@ export async function PATCH(request: NextRequest) {
     if (cur && !cur.slug && cur.code) patch.slug = String(cur.code).toLowerCase();
   }
 
-  const { error } = await db.from('idea_bank').update(patch).eq('id', id);
+  const { data: saved, error } = await db
+    .from('idea_bank')
+    .update(patch)
+    .eq('id', id)
+    .select('slug, is_published')
+    .maybeSingle();
   if (error) {
     return no(
       { error: error.message.includes('duplicate') ? '这个网址已经被占用' : 'Update failed.' },
       502,
     );
   }
+  // 已发布的(或刚撤下的)任何改动都刷新公开页;草稿不用
+  if (saved?.is_published || patch.is_published === false) revalidateIdea(saved?.slug);
   return no({ ok: true }, 200);
 }
 
@@ -154,7 +162,13 @@ export async function DELETE(request: NextRequest) {
   if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return no({ error: 'Missing id.' }, 400);
-  const { error } = await admin().from('idea_bank').delete().eq('id', id);
+  const { data: gone, error } = await admin()
+    .from('idea_bank')
+    .delete()
+    .eq('id', id)
+    .select('slug, is_published')
+    .maybeSingle();
   if (error) return no({ error: 'Delete failed.' }, 502);
+  if (gone?.is_published) revalidateIdea(gone.slug);
   return no({ ok: true }, 200);
 }
