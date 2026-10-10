@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 
 /** 浏览器端只拿 publishable key 做登录；所有数据操作都走 /api/admin/*，
  *  由服务端用 service_role 执行并校验 is_admin。
@@ -132,6 +132,13 @@ export default function AdminPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
   const [note, setNote] = useState('');
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 底部一条绿色提示,两秒半自己消失;连着点会刷新计时而不是叠加
+  const toast = (text: string) => {
+    setNote(text);
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => setNote(''), 2500);
+  };
 
   // ── 视图 / 选题库 / 队列 ──
   const [view, setView] =
@@ -513,12 +520,34 @@ export default function AdminPage() {
     }
   };
 
-  const patchBank = async (id: string, patch: Partial<BankIdea>) => {
+  /**
+   * 先改界面再发请求。数据库在孟买,一个来回几百毫秒,
+   * 点了没反应会让人再点一次。失败了再把列表拉回来、报错。
+   */
+  const patchBank = async (
+    id: string,
+    patch: Partial<BankIdea> & { refs?: Ref[] },
+  ): Promise<boolean> => {
+    setBank((cur) => cur.map((b) => (b.id === id ? { ...b, ...patch } : b)));
     try {
-      await api('bank', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) });
-      await loadBank();
+      const d = await api('bank', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) });
+      if (d.idea) setBank((cur) => cur.map((b) => (b.id === id ? { ...b, ...d.idea } : b)));
+      toast(
+        patch.is_published === true
+          ? '已发布到网站'
+          : patch.is_published === false
+            ? '已从网站撤下'
+            : patch.is_free === true
+              ? '已设为免费样稿，网站上不登录就能看'
+              : patch.is_free === false
+                ? '已取消免费样稿'
+                : '已保存',
+      );
+      return true;
     } catch (e) {
       setErr((e as Error).message);
+      await loadBank();
+      return false;
     }
   };
 
@@ -529,8 +558,7 @@ export default function AdminPage() {
     try {
       const d = await api('bank/audio', { method: 'POST', body: JSON.stringify({ id, force }) });
       await loadBank();
-      setNote(d.reused ? '稿子没改，用的还是上次那条' : '念好了');
-      setTimeout(() => setNote(''), 2500);
+      toast(d.reused ? '稿子没改，用的还是上次那条' : '念好了，网站上已经能听');
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -697,7 +725,6 @@ export default function AdminPage() {
     <main className="mx-auto max-w-6xl p-6">
       <header className="mb-6 flex items-center gap-3">
         <h1 className="font-display text-2xl font-bold">Fordexa 后台</h1>
-        <span className="text-sm text-[var(--accent)]">{note}</span>
         <div className="flex-1" />
         <button
           className={btnGhost}
@@ -1406,6 +1433,13 @@ export default function AdminPage() {
           )}
         </section>
       </div>
+      {note && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center">
+          <div className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-black shadow-lg">
+            {note}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1429,7 +1463,7 @@ function BankEditor({
   idea: BankIdea;
   orgs: Org[];
   draft: (title: string, orgId: string, industry: string | null, note: string) => Promise<string | null>;
-  onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => void;
+  onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => Promise<boolean>;
   onAudio: (force: boolean) => void;
   voicing: boolean;
   onDelete: () => void;
@@ -1444,6 +1478,16 @@ function BankEditor({
   );
   // 起草稿：挑一家公司就带上他们的风格，不挑就用通用骨架
   const [styleOrg, setStyleOrg] = useState('');
+  // 哪个按钮正在等服务器:按钮上显示「发布中…」,期间不让重复点
+  const [saving, setSaving] = useState<'save' | 'publish' | 'free' | null>(null);
+  const run = async (kind: 'save' | 'publish' | 'free', patch: Partial<BankIdea> & { refs?: Ref[] }) => {
+    setSaving(kind);
+    try {
+      await onSave(patch);
+    } finally {
+      setSaving(null);
+    }
+  };
   const [brief, setBrief] = useState('');
   const [drafting, setDrafting] = useState(false);
 
@@ -1550,14 +1594,16 @@ function BankEditor({
         />
         <button
           className={btn}
-          onClick={() => onSave({ summary, script, slug, refs: parsedRefs })}
+          disabled={saving !== null}
+          onClick={() => run('save', { summary, script, slug, refs: parsedRefs })}
         >
-          保存
+          {saving === 'save' ? '保存中…' : '保存'}
         </button>
         <button
           className={btnGhost}
+          disabled={saving !== null}
           onClick={() =>
-            onSave({
+            run('publish', {
               summary,
               script,
               slug,
@@ -1566,7 +1612,13 @@ function BankEditor({
             })
           }
         >
-          {idea.is_published ? '从网站撤下' : '保存并发布到网站'}
+          {saving === 'publish'
+            ? idea.is_published
+              ? '撤下中…'
+              : '发布中…'
+            : idea.is_published
+              ? '从网站撤下'
+              : '保存并发布到网站'}
         </button>
         <button
           className={btnGhost}
@@ -1585,7 +1637,8 @@ function BankEditor({
           <input
             type="checkbox"
             checked={idea.is_free}
-            onChange={(e) => onSave({ is_free: e.target.checked })}
+            disabled={saving !== null}
+            onChange={(e) => run('free', { is_free: e.target.checked })}
           />
           <span className={idea.is_free ? 'text-[var(--accent)]' : ''}>免费样稿</span>
         </label>

@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest) {
     .from('idea_bank')
     .update(patch)
     .eq('id', id)
-    .select('slug, is_published')
+    .select('*')
     .maybeSingle();
   if (error) {
     return no(
@@ -153,7 +153,14 @@ export async function PATCH(request: NextRequest) {
   }
   // 已发布的(或刚撤下的)任何改动都刷新公开页;草稿不用
   if (saved?.is_published || patch.is_published === false) revalidateIdea(saved?.slug);
-  return no({ ok: true }, 200);
+  // 把改完的整行回给后台,界面直接合并,不用再拉一遍列表
+  const idea = saved && {
+    ...saved,
+    audio_stale: Boolean(
+      saved.audio_url && saved.script && saved.audio_script_hash !== scriptHash(String(saved.script)),
+    ),
+  };
+  return no({ ok: true, idea }, 200);
 }
 
 /** 下架用 is_active=false；这里的删除只给「刚加错了」用。 */
