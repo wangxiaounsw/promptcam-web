@@ -177,21 +177,20 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
         </select>
       </div>
 
-      {/* 行业 */}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button className={chip(!industry)} onClick={() => set({ industry: null, tag: null })}>
-          全部 {ideas.length}
-        </button>
-        {industries.map((i) => (
-          <button
-            key={i.key}
-            className={chip(industry === i.key)}
-            onClick={() => set({ industry: industry === i.key ? null : i.key, tag: null })}
-          >
-            {i.name} {i.n}
-          </button>
-        ))}
-        <span className="mx-1 self-center text-[var(--line)]">|</span>
+      {/* 行业下拉 + 两个开关 */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <select
+          className="rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] px-3 py-2 text-sm"
+          value={industry}
+          onChange={(e) => set({ industry: e.target.value || null, tag: null })}
+        >
+          <option value="">全部行业 · {ideas.length}</option>
+          {industries.map((i) => (
+            <option key={i.key} value={i.key}>
+              {i.name} · {i.n}
+            </option>
+          ))}
+        </select>
         <button className={chip(onlyFree)} onClick={() => set({ free: onlyFree ? null : '1' })}>
           免费样稿
         </button>
