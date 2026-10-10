@@ -74,7 +74,7 @@ export default async function IdeaPage({ params }: Props) {
 
       {/* 免费样稿整篇进 HTML —— 这是故意的,让路人(和搜索引擎)看到稿子长什么样 */}
       {idea.isFree && idea.script ? (
-        <ScriptBody script={idea.script} code={idea.code} badge="免费样稿">
+        <ScriptBody script={idea.script} code={idea.code} badge="免费样稿" audioUrl={idea.audioUrl}>
           这条是公开的样稿。其他选题的完整口播稿给 Fordexa 的客户 ——
           <Link className="text-[var(--accent)] hover:underline" href="/login?next=%2Fideas">
             登录

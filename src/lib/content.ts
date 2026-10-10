@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 
 import { admin, configured, requestUser } from '@/lib/auth';
+import { scriptHash } from '@/lib/tts';
 
 /**
  * 网站灵感库的取数。
@@ -28,6 +29,8 @@ export type PublicIdea = {
   isFree: boolean;
   /** 有权限(或免费)时才有值 */
   script?: string;
+  /** 朗读音频,和 script 同一套权限;稿子改过还没重念时不给 */
+  audioUrl?: string;
   /** 这条有没有口播稿(没权限的人也该知道「有正文可看」) */
   hasScript: boolean;
 };
@@ -42,6 +45,8 @@ type Row = {
   script: string | null;
   published_at: string | null;
   is_free: boolean | null;
+  audio_url: string | null;
+  audio_script_hash: string | null;
 };
 
 function parseRefs(raw: unknown): Ref[] {
@@ -66,6 +71,9 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
     isFree,
     hasScript: Boolean(row.script),
     ...((allowed || isFree) && row.script ? { script: row.script } : {}),
+    ...((allowed || isFree) && row.script && row.audio_url && row.audio_script_hash === scriptHash(row.script)
+      ? { audioUrl: row.audio_url }
+      : {}),
   };
 }
 
@@ -150,7 +158,8 @@ export async function canReadScript(request: NextRequest): Promise<boolean> {
   return (await accessFor(request)).allowed;
 }
 
-const SELECT = 'code, slug, title, summary, industry, refs, script, published_at, is_free';
+const SELECT =
+  'code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash';
 
 /** 已发布的全部,新的在前。列表页从不返回正文(免费的也不,列表用不着)。 */
 export async function listPublished(): Promise<PublicIdea[]> {
@@ -165,8 +174,9 @@ export async function listPublished(): Promise<PublicIdea[]> {
     industryNames(),
   ]);
   return ((data ?? []) as Row[]).map((r) => {
-    const { script: _drop, ...rest } = toPublic(r, names, false);
+    const { script: _drop, audioUrl: _drop2, ...rest } = toPublic(r, names, false);
     void _drop;
+    void _drop2;
     return rest;
   });
 }

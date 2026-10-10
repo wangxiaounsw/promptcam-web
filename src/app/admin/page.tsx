@@ -38,6 +38,10 @@ type BankIdea = {
   is_active: boolean;
   is_published: boolean;
   is_free: boolean;
+  audio_url: string | null;
+  audio_script_hash: string | null;
+  audio_at: string | null;
+  audio_stale: boolean;
 };
 
 type AccessRequest = {
@@ -518,6 +522,22 @@ export default function AdminPage() {
     }
   };
 
+  const [voicing, setVoicing] = useState<string | null>(null);
+  const makeAudio = async (id: string, force = false) => {
+    setVoicing(id);
+    setErr('');
+    try {
+      const d = await api('bank/audio', { method: 'POST', body: JSON.stringify({ id, force }) });
+      await loadBank();
+      setNote(d.reused ? '稿子没改，用的还是上次那条' : '念好了');
+      setTimeout(() => setNote(''), 2500);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setVoicing(null);
+    }
+  };
+
   const delBank = async (id: string) => {
     if (!confirm('删除这条选题？已经提交过它的记录会保留（正文当时抄了一份）。')) return;
     try {
@@ -866,6 +886,8 @@ export default function AdminPage() {
                         orgs={orgs}
                         draft={makeDraft}
                         onSave={(patch) => patchBank(b.id, patch)}
+                        onAudio={(force) => makeAudio(b.id, force)}
+                        voicing={voicing === b.id}
                         onDelete={() => delBank(b.id)}
                         onToggleActive={() =>
                           patchBank(b.id, { is_active: !b.is_active })
@@ -1399,6 +1421,8 @@ function BankEditor({
   orgs,
   draft,
   onSave,
+  onAudio,
+  voicing,
   onDelete,
   onToggleActive,
 }: {
@@ -1406,6 +1430,8 @@ function BankEditor({
   orgs: Org[];
   draft: (title: string, orgId: string, industry: string | null, note: string) => Promise<string | null>;
   onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => void;
+  onAudio: (force: boolean) => void;
+  voicing: boolean;
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
@@ -1542,6 +1568,19 @@ function BankEditor({
         >
           {idea.is_published ? '从网站撤下' : '保存并发布到网站'}
         </button>
+        <button
+          className={btnGhost}
+          disabled={voicing || !idea.script}
+          title="Fish Audio「女大学生」念一遍，存起来放在网站上。先保存正文再点。"
+          onClick={() => onAudio(Boolean(idea.audio_url))}
+        >
+          {voicing ? '念着呢…' : idea.audio_url ? '重新念一遍' : '生成朗读'}
+        </button>
+        {idea.audio_url && (
+          <span className="text-xs text-[var(--muted)]">
+            {idea.audio_stale ? '⚠ 稿子改过了，朗读是旧的' : '已有朗读'}
+          </span>
+        )}
         <label className="flex items-center gap-1.5 text-sm" title="整篇公开，不登录也能看。用来让路人看出稿子的质量，一两条就够。">
           <input
             type="checkbox"

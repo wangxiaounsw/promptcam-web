@@ -9,11 +9,13 @@ export default function ScriptBody({
   script,
   code,
   badge,
+  audioUrl,
   children,
 }: {
   script: string;
   code: string;
   badge?: string;
+  audioUrl?: string;
   children?: ReactNode;
 }) {
   // 按空行分段显示 —— 整块灰字读起来像合同,念的人需要换气的地方
@@ -44,6 +46,14 @@ export default function ScriptBody({
         <div className="flex-1" />
         <CopyButton text={script} />
       </div>
+      {audioUrl && (
+        <div className="mb-4 rounded-2xl bg-[var(--bg-raised)] px-5 py-4">
+          <p className="mb-2 text-xs font-medium text-[var(--muted)]">
+            先听一遍 —— AI 朗读，找语气和节奏用的，正式拍还是你自己念
+          </p>
+          <audio controls preload="none" src={audioUrl} className="w-full" />
+        </div>
+      )}
       <div className="rounded-2xl bg-[var(--bg-raised)] p-7">
         {paras.map((p, i) => (
           <p

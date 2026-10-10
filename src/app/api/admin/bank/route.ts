@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
+import { scriptHash } from '@/lib/tts';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -29,7 +30,14 @@ export async function GET(request: NextRequest) {
     .order('industry', { nullsFirst: true })
     .order('sort_order');
   if (error) return no({ error: 'Load failed.' }, 502);
-  return no({ bank: data ?? [] }, 200);
+  // audio_stale:稿子改过、朗读还是旧的 —— 后台据此提示重念
+  const bank = (data ?? []).map((b) => ({
+    ...b,
+    audio_stale: Boolean(
+      b.audio_url && b.script && b.audio_script_hash !== scriptHash(String(b.script)),
+    ),
+  }));
+  return no({ bank }, 200);
 }
 
 /**

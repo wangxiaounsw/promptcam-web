@@ -21,6 +21,7 @@ type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open';
 export default function ScriptGate({ slug, code }: { slug: string; code: string }) {
   const [state, setState] = useState<State>('loading');
   const [script, setScript] = useState('');
+  const [audioUrl, setAudioUrl] = useState<string | undefined>();
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +37,7 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
         if (cancelled) return;
         if (body?.idea?.script) {
           setScript(body.idea.script as string);
+          setAudioUrl(body.idea.audioUrl as string | undefined);
           setState('open');
         } else if (!body?.signedIn) {
           setState('anon');
@@ -59,7 +61,7 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
 
   if (state === 'open') {
     return (
-      <ScriptBody script={script} code={code}>
+      <ScriptBody script={script} code={code} audioUrl={audioUrl}>
         打开「Fordexa 口播助手」，这条就在行业灵感里，点一下加到口播库就能录 ——
         不用复制粘贴。
       </ScriptBody>
