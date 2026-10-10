@@ -78,10 +78,16 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
   };
 }
 
+let namesCache: { at: number; map: Map<string, string> } | null = null;
+
+/** 行业名,十分钟内不重复查 —— 每次取稿子都查一遍是白白多一个来回 */
 async function industryNames(): Promise<Map<string, string>> {
   if (!configured) return new Map();
+  if (namesCache && Date.now() - namesCache.at < 600_000) return namesCache.map;
   const { data } = await admin().from('industries').select('key, name_zh');
-  return new Map((data ?? []).map((i) => [i.key as string, i.name_zh as string]));
+  const map = new Map((data ?? []).map((i) => [i.key as string, i.name_zh as string]));
+  namesCache = { at: Date.now(), map };
+  return map;
 }
 
 /**
@@ -124,34 +130,42 @@ export async function accessFor(request: NextRequest): Promise<Access> {
   const user = await requestUser(request);
   if (!user) return none;
 
+  // 个人 + 所属公司一次查出来,待处理申请并行查 —— 数据库在悉尼,
+  // 每多一个串行来回就多 200ms,原来六个排着队要 1.8 秒
   const db = admin();
-  const { data } = await db
-    .from('profiles')
-    .select('is_fordexa_client, org_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  // 口径和数据库里的 has_content_access() 一致:本人是客户,或所属公司已开通
-  if (data?.is_fordexa_client) return { user, allowed: true, pending: false };
+  const [{ data: profile }, { data: req }] = await Promise.all([
+    db
+      .from('profiles')
+      .select('is_fordexa_client, org_id, organizations(is_active)')
+      .eq('id', user.id)
+      .maybeSingle(),
+    db
+      .from('access_requests')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .maybeSingle(),
+  ]);
+  const pending = Boolean(req);
+  if (profile?.is_fordexa_client) return { user, allowed: true, pending };
 
-  let orgId = (data?.org_id as string | null) ?? null;
-  if (!orgId && user.email) orgId = await claimOrgByDomain(user.id, user.email);
+  const org = profile?.organizations as { is_active: boolean } | { is_active: boolean }[] | null;
+  const active = Array.isArray(org) ? org[0]?.is_active : org?.is_active;
+  if (profile?.org_id) return { user, allowed: Boolean(active), pending };
 
-  if (orgId) {
-    const { data: org } = await db
-      .from('organizations')
-      .select('is_active')
-      .eq('id', orgId)
-      .maybeSingle();
-    if (org?.is_active) return { user, allowed: true, pending: false };
+  // 没挂公司:按邮箱域名试着挂一次(只有第一次会多这一个来回)
+  if (user.email) {
+    const orgId = await claimOrgByDomain(user.id, user.email);
+    if (orgId) {
+      const { data: o } = await db
+        .from('organizations')
+        .select('is_active')
+        .eq('id', orgId)
+        .maybeSingle();
+      return { user, allowed: Boolean(o?.is_active), pending };
+    }
   }
-
-  const { data: req } = await db
-    .from('access_requests')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('status', 'pending')
-    .maybeSingle();
-  return { user, allowed: false, pending: Boolean(req) };
+  return { user, allowed: false, pending };
 }
 
 /** 当前访客能不能看正文。 */
@@ -182,13 +196,9 @@ export async function listPublished(): Promise<PublicIdea[]> {
   });
 }
 
-/** 单篇。allowed 决定正文给不给;免费样稿不看 allowed。 */
-export async function getPublished(
-  slug: string,
-  allowed: boolean,
-): Promise<PublicIdea | null> {
+/** 单篇的原始行,不带权限判断 —— 给接口和权限检查并行用 */
+export async function fetchPublishedRow(slug: string): Promise<Row | null> {
   if (!configured) return null;
-  const names = await industryNames();
   const key = slug.toLowerCase();
   // slug 没填时用编号兜底,所以两边都查一次
   const { data } = await admin()
@@ -198,7 +208,20 @@ export async function getPublished(
     .eq('is_active', true)
     .or(`slug.eq.${key},code.eq.${key.toUpperCase()}`)
     .maybeSingle();
-  return data ? toPublic(data as Row, names, allowed) : null;
+  return (data as Row | null) ?? null;
+}
+
+export async function rowToPublic(row: Row, allowed: boolean): Promise<PublicIdea> {
+  return toPublic(row, await industryNames(), allowed);
+}
+
+/** 单篇。allowed 决定正文给不给;免费样稿不看 allowed。 */
+export async function getPublished(
+  slug: string,
+  allowed: boolean,
+): Promise<PublicIdea | null> {
+  const [row, names] = await Promise.all([fetchPublishedRow(slug), industryNames()]);
+  return row ? toPublic(row, names, allowed) : null;
 }
 
 /**

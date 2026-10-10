@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { accessFor, getPublished, listPublished } from '@/lib/content';
+import { accessFor, fetchPublishedRow, listPublished, rowToPublic } from '@/lib/content';
 
 export const runtime = 'nodejs';
 
@@ -19,9 +19,10 @@ export async function GET(request: NextRequest) {
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
-  const access = await accessFor(request);
-  const idea = await getPublished(slug, access.allowed);
-  if (!idea) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  // 权限和稿子并行取,互不依赖
+  const [access, row] = await Promise.all([accessFor(request), fetchPublishedRow(slug)]);
+  if (!row) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  const idea = await rowToPublic(row, access.allowed);
   return NextResponse.json(
     {
       idea,
