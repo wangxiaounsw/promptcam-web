@@ -888,6 +888,14 @@ export default function AdminPage() {
                           patchBank(b.id, { title: e.target.value.trim() })
                         }
                       />
+                      {b.source_kind === 'pipeline' && (
+                        <span
+                          className="shrink-0 rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] text-amber-300"
+                          title="选题管线自动起草的，发布前看一遍数字和出处"
+                        >
+                          管线
+                        </span>
+                      )}
                       {b.is_published && (
                         <a
                           href={`/ideas/${b.slug ?? (b.code ?? '').toLowerCase()}`}
@@ -1543,6 +1551,16 @@ function BankEditor({
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
           />
+          {idea.source_url && (
+            <a
+              href={idea.source_url}
+              target="_blank"
+              rel="noopener"
+              className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline"
+            >
+              打开来源 ↗
+            </a>
+          )}
         </div>
       </div>
 
