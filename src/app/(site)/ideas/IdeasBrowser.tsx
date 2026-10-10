@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import type { PublicIdea } from '@/lib/content';
@@ -18,23 +17,43 @@ type Sort = 'new' | 'old' | 'industry';
  * 免费的谁都有;其余只有客户有。没拿到链接的显示锁,点了去详情页登录。
  * 整页只有一个 <audio>,点别的会把上一条停掉。
  */
+type Filters = { q: string; industry: string; tag: string; sort: Sort; free: boolean; audio: boolean };
+const EMPTY: Filters = { q: '', industry: '', tag: '', sort: 'new', free: false, audio: false };
+
+function fromSearch(search: string): Filters {
+  const p = new URLSearchParams(search);
+  return {
+    q: p.get('q') ?? '',
+    industry: p.get('industry') ?? '',
+    tag: p.get('tag') ?? '',
+    sort: (p.get('sort') as Sort) || 'new',
+    free: p.get('free') === '1',
+    audio: p.get('audio') === '1',
+  };
+}
+
 export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
+  /**
+   * 筛选状态不用 Next 的 useSearchParams:那个钩子会让静态页把整段列表
+   * 留到浏览器再画,HTML 里就没有列表了,Google 看到的是空页。
+   * 这里服务端先按「无筛选」把完整列表印出来,浏览器接手后再读一次网址套上筛选。
+   */
+  const [f, setF] = useState<Filters>(EMPTY);
+  useEffect(() => {
+    setF(fromSearch(window.location.search));
+    const onPop = () => setF(fromSearch(window.location.search));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
-  const q = params.get('q') ?? '';
-  const industry = params.get('industry') ?? '';
-  const tag = params.get('tag') ?? '';
-  const sort = (params.get('sort') as Sort) || 'new';
-  const onlyFree = params.get('free') === '1';
-  const onlyAudio = params.get('audio') === '1';
+  const { q, industry, tag, sort, free: onlyFree, audio: onlyAudio } = f;
 
-  const set = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(params.toString());
+  const set = (patch: Partial<Record<'q' | 'industry' | 'tag' | 'sort' | 'free' | 'audio', string | null>>) => {
+    const next = new URLSearchParams(window.location.search);
     for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    setF(fromSearch(qs));
   };
 
   // 搜索框本地跟手,停 200ms 再写进 URL,免得每敲一个字就改一次历史

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
 import { listPublished } from '@/lib/content';
 import IdeasBrowser from './IdeasBrowser';
 
@@ -40,9 +39,7 @@ export default async function IdeasPage() {
         完整口播稿和朗读给 Fordexa 的客户 —— 打开 App 照着念就行。
       </p>
 
-      <Suspense>
-        <IdeasBrowser ideas={ideas} />
-      </Suspense>
+      <IdeasBrowser ideas={ideas} />
     </main>
   );
 }
