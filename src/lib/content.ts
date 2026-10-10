@@ -28,6 +28,10 @@ export type PublicIdea = {
   publishedAt: string | null;
   /** 免费样稿:整篇公开,不登录也能看 */
   isFree: boolean;
+  tags: string[];
+  /** 有没有朗读(没权限的人也该知道「有的听」) */
+  hasAudio: boolean;
+  sourceUrl: string | null;
   /** 有权限(或免费)时才有值 */
   script?: string;
   /** 朗读音频,和 script 同一套权限;稿子改过还没重念时不给 */
@@ -48,6 +52,8 @@ type Row = {
   is_free: boolean | null;
   audio_url: string | null;
   audio_script_hash: string | null;
+  tags: string[] | null;
+  source_url: string | null;
 };
 
 function parseRefs(raw: unknown): Ref[] {
@@ -58,9 +64,16 @@ function parseRefs(raw: unknown): Ref[] {
     .filter((r) => r.label);
 }
 
+function audioReady(row: Row): boolean {
+  return Boolean(row.script && row.audio_url && row.audio_script_hash === scriptHash(row.script));
+}
+
 function toPublic(row: Row, names: Map<string, string>, allowed: boolean): PublicIdea {
   const isFree = Boolean(row.is_free);
   return {
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    hasAudio: audioReady(row),
+    sourceUrl: row.source_url,
     code: row.code ?? '',
     slug: row.slug ?? (row.code ?? '').toLowerCase(),
     title: row.title,
@@ -72,9 +85,7 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
     isFree,
     hasScript: Boolean(row.script),
     ...((allowed || isFree) && row.script ? { script: row.script } : {}),
-    ...((allowed || isFree) && row.script && row.audio_url && row.audio_script_hash === scriptHash(row.script)
-      ? { audioUrl: row.audio_url }
-      : {}),
+    ...((allowed || isFree) && audioReady(row) ? { audioUrl: row.audio_url! } : {}),
   };
 }
 
@@ -174,7 +185,7 @@ export async function canReadScript(request: NextRequest): Promise<boolean> {
 }
 
 const SELECT =
-  'code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash';
+  'code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url';
 
 /** 已发布的全部,新的在前。列表页从不返回正文(免费的也不,列表用不着)。 */
 export async function listPublished(): Promise<PublicIdea[]> {
@@ -233,4 +244,25 @@ export function revalidateIdea(slug?: string | null) {
   revalidatePath('/ideas');
   revalidatePath('/sitemap.xml');
   if (slug) revalidatePath(`/ideas/${slug}`);
+}
+
+/**
+ * 总览页的试听:一次把访客能听的全部音频链接给出来(code → url)。
+ * 免费的谁都能听;其余只给有权限的人。没权限就只回免费那几条。
+ */
+export async function audioMapFor(request: NextRequest): Promise<Record<string, string>> {
+  if (!configured) return {};
+  const [{ allowed }, { data }] = await Promise.all([
+    accessFor(request),
+    admin()
+      .from('idea_bank')
+      .select('code, script, is_free, audio_url, audio_script_hash')
+      .eq('is_published', true)
+      .eq('is_active', true),
+  ]);
+  const out: Record<string, string> = {};
+  for (const r of (data ?? []) as Row[]) {
+    if ((allowed || r.is_free) && audioReady(r) && r.code) out[r.code] = r.audio_url!;
+  }
+  return out;
 }

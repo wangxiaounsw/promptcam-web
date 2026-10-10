@@ -42,6 +42,9 @@ type BankIdea = {
   audio_script_hash: string | null;
   audio_at: string | null;
   audio_stale: boolean;
+  tags: string[];
+  source_url: string | null;
+  source_kind: string | null;
 };
 
 type AccessRequest = {
@@ -1472,6 +1475,9 @@ function BankEditor({
   const [summary, setSummary] = useState(idea.summary ?? '');
   const [script, setScript] = useState(idea.script ?? '');
   const [slug, setSlug] = useState(idea.slug ?? '');
+  const [tagsText, setTagsText] = useState((idea.tags ?? []).join(', '));
+  const [sourceUrl, setSourceUrl] = useState(idea.source_url ?? '');
+  const parsedTags = tagsText.split(/[,，、\s]+/).map((t) => t.trim()).filter(Boolean);
   // 参考文献用「名称|网址」一行一条写，比做一堆增删按钮快得多
   const [refsText, setRefsText] = useState(
     (idea.refs ?? []).map((r) => (r.url ? `${r.label}|${r.url}` : r.label)).join('\n'),
@@ -1513,6 +1519,31 @@ function BankEditor({
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
         />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
+            标签 · 公开 —— 逗号隔开，网站上按它筛选
+          </label>
+          <input
+            className={input}
+            placeholder="BAS, GST, 小生意"
+            value={tagsText}
+            onChange={(e) => setTagsText(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-[var(--muted)]">
+            来源网址 —— 这条选题从哪看来的，可不填
+          </label>
+          <input
+            className={input}
+            placeholder="https://www.ato.gov.au/…"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+          />
+        </div>
       </div>
 
       <div>
@@ -1587,15 +1618,23 @@ function BankEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         <input
-          className="w-56 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-          placeholder={`网址（留空用 ${(idea.code ?? '').toLowerCase()}）`}
+          className="w-64 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm disabled:opacity-50"
+          placeholder="网址：留空发布时自动起英文关键词"
+          title={
+            idea.is_published
+              ? '已发布的网址锁定了，改了外面的链接会断'
+              : '留空的话发布时 AI 起 3–6 个英文词，再自动带上编号'
+          }
           value={slug}
+          disabled={idea.is_published}
           onChange={(e) => setSlug(e.target.value)}
         />
         <button
           className={btn}
           disabled={saving !== null}
-          onClick={() => run('save', { summary, script, slug, refs: parsedRefs })}
+          onClick={() =>
+            run('save', { summary, script, slug, refs: parsedRefs, tags: parsedTags, source_url: sourceUrl })
+          }
         >
           {saving === 'save' ? '保存中…' : '保存'}
         </button>
@@ -1608,6 +1647,8 @@ function BankEditor({
               script,
               slug,
               refs: parsedRefs,
+              tags: parsedTags,
+              source_url: sourceUrl,
               is_published: !idea.is_published,
             })
           }

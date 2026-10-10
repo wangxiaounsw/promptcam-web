@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { getPublished, listPublished } from '@/lib/content';
 import ScriptBody from './ScriptBody';
 import ScriptGate from './ScriptGate';
@@ -38,6 +38,8 @@ export default async function IdeaPage({ params }: Props) {
    */
   const idea = await getPublished(slug, false);
   if (!idea) notFound();
+  // 老链接(比如只有编号的 /ideas/fx-0007)永久跳到正式网址,搜索引擎只记一个
+  if (idea.slug.toLowerCase() !== slug.toLowerCase()) permanentRedirect(`/ideas/${idea.slug}`);
 
   return (
     <main className="mx-auto max-w-2xl px-6 pb-24 pt-14">
@@ -58,8 +60,25 @@ export default async function IdeaPage({ params }: Props) {
           </span>
         )}
         {idea.industryName && (
-          <span className="rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
+          <Link
+            href={`/ideas?industry=${encodeURIComponent(idea.industry ?? '')}`}
+            className="rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]"
+          >
             {idea.industryName}
+          </Link>
+        )}
+        {idea.tags.map((t) => (
+          <Link
+            key={t}
+            href={`/ideas?tag=${encodeURIComponent(t)}`}
+            className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
+          >
+            {t}
+          </Link>
+        ))}
+        {idea.publishedAt && (
+          <span className="text-xs text-[var(--muted)]">
+            {new Date(idea.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
           </span>
         )}
       </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
 import { scriptHash } from '@/lib/tts';
 import { revalidateIdea } from '@/lib/content';
+import { slugify, suggestSlug, withCode } from '@/lib/slug';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -13,14 +14,6 @@ const no = (body: object, status: number) =>
  * 网址片段。中文标题生成不出有意义的拉丁 slug,所以中文留空由调用方
  * 用编号兜底(/ideas/fx-0042)—— 比硬转拼音可读性更稳。
  */
-function slugify(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-}
-
 /** 行业选题库。客户端只读（RLS 按行业过滤），维护全在这里走 service_role。 */
 export async function GET(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
@@ -121,6 +114,17 @@ export async function PATCH(request: NextRequest) {
   }
   if (typeof body.slug === 'string') patch.slug = slugify(body.slug) || null;
   if (typeof body.is_free === 'boolean') patch.is_free = body.is_free;
+  if (Array.isArray(body.tags)) {
+    // 标签:细分主题,去重、去空、最多 10 个
+    patch.tags = [...new Set(
+      body.tags.map((t) => String(t).trim().replace(/^#/, '').slice(0, 30)).filter(Boolean),
+    )].slice(0, 10);
+  }
+  if ('source_url' in body) {
+    const u = String(body.source_url ?? '').trim();
+    patch.source_url = /^https?:\/\//i.test(u) ? u.slice(0, 500) : null;
+  }
+  if ('source_kind' in body) patch.source_kind = String(body.source_kind ?? '').trim().slice(0, 40) || null;
   if (typeof body.is_published === 'boolean') {
     patch.is_published = body.is_published;
     // 第一次发布时记下时间,列表按它倒序
@@ -129,14 +133,34 @@ export async function PATCH(request: NextRequest) {
   if (!Object.keys(patch).length) return no({ error: 'Nothing to update.' }, 400);
 
   const db = admin();
-  // 要发布但还没有 slug:用编号兜底,/ideas/fx-0042 永远有效
-  if (patch.is_published === true && !patch.slug) {
-    const { data: cur } = await db
-      .from('idea_bank')
-      .select('slug, code')
-      .eq('id', id)
-      .maybeSingle();
-    if (cur && !cur.slug && cur.code) patch.slug = String(cur.code).toLowerCase();
+  const { data: cur } = await db
+    .from('idea_bank')
+    .select('slug, code, title, summary, is_published')
+    .eq('id', id)
+    .maybeSingle();
+  if (!cur) return no({ error: 'Not found.' }, 404);
+
+  /**
+   * slug 规则:
+   *   - 发布后锁定。已发布的条目改 slug 一律忽略(除非 force_slug),外面的链接不能断
+   *   - 第一次发布时还没有像样的 slug(空的、或者只是编号):让 DeepSeek 起英文关键词
+   *   - 不管谁起的,最后都带编号后缀,保证唯一、永远能找回来
+   */
+  const code = cur.code ? String(cur.code) : null;
+  const onlyCode = (sl: string | null) => !sl || sl === (code ?? '').toLowerCase();
+  if (cur.is_published && 'slug' in patch && !body.force_slug) delete patch.slug;
+  const publishing = patch.is_published === true && !cur.is_published;
+  if (publishing || body.force_slug) {
+    let base = (patch.slug as string | null | undefined) ?? cur.slug ?? null;
+    if (onlyCode(base)) {
+      base = await suggestSlug(
+        (patch.title as string) ?? cur.title,
+        (patch.summary as string | null) ?? cur.summary,
+      );
+    }
+    patch.slug = withCode(base ?? '', code) || (code ?? '').toLowerCase() || null;
+  } else if (typeof patch.slug === 'string' && patch.slug) {
+    patch.slug = withCode(patch.slug, code);
   }
 
   const { data: saved, error } = await db
