@@ -59,6 +59,9 @@ export type ChildIdea = {
   isFree: boolean;
   likes: number;
   saves: number;
+  tags: string[];
+  industry: string | null;
+  industryName: string | null;
 };
 
 type Row = {
@@ -283,6 +286,8 @@ export async function getPublished(
       code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
       hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
       likes: k.like_count ?? 0, saves: k.save_count ?? 0,
+      tags: Array.isArray(k.tags) ? k.tags : [], industry: k.industry,
+      industryName: k.industry ? (names.get(k.industry) ?? k.industry) : null,
     }));
   }
   return pub;

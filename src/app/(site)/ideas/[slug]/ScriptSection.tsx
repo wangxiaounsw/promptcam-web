@@ -13,8 +13,8 @@ import ReactionBar from '@/components/ReactionBar';
  * 播放器和正文都按权限:没权限显示锁,点了去登录/申请(由 ScriptGate 处理)。
  */
 export default function ScriptSection({
-  slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false,
-}: { slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean }) {
+  slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false, tags = [], industry = null, industryName = null,
+}: { slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean; tags?: string[]; industry?: string | null; industryName?: string | null }) {
   const [open, setOpen] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
@@ -47,6 +47,21 @@ export default function ScriptSection({
         {!standalone && <ReactionBar code={code} likes={likes} saves={saves} size="sm" next={`/ideas/${slug}`} />}
       </div>
       {summary && <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{summary}</p>}
+      {/* 行业 + 标签:点了去口播库按它筛 */}
+      {!standalone && (industryName || tags.length > 0) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
+          {industryName && (
+            <Link href={`/ideas?industry=${encodeURIComponent(industry ?? '')}`} className="rounded-full bg-[var(--accent-tint)] px-2 py-0.5 font-medium text-[var(--accent)]">
+              {industryName}
+            </Link>
+          )}
+          {tags.map((t) => (
+            <Link key={t} href={`/ideas?tag=${encodeURIComponent(t)}`} className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[var(--muted)] hover:text-[var(--ink)]">
+              {t}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {hasAudio && state === 'open' && audioUrl && (
