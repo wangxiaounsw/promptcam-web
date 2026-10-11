@@ -28,12 +28,22 @@ async function authHeaders(): Promise<Record<string, string>> {
  * ♡ 点赞 · ☆ 收藏。点赞谁都能点;收藏要登录,没登录点了就去登录页。
  * 初始计数由服务端传进来(列表/详情页都有),所以首屏不闪。
  */
-export default function ReactionBar({ code, likes, saves, size = 'md', next }: { code: string; likes: number; saves: number; size?: 'sm' | 'md'; next?: string }) {
+export type Mine = { liked: boolean; saved: boolean };
+
+export default function ReactionBar({ code, likes, saves, size = 'md', next, mine, onChange }: {
+  code: string; likes: number; saves: number; size?: 'sm' | 'md'; next?: string;
+  /** 列表页一次拉好全部状态传进来,就不每行各自请求一次 */
+  mine?: Mine;
+  onChange?: (code: string, m: Mine, likes: number, saves: number) => void;
+}) {
   const [l, setL] = useState(likes); const [s, setS] = useState(saves);
-  const [liked, setLiked] = useState(false); const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(mine?.liked ?? false); const [saved, setSaved] = useState(mine?.saved ?? false);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { if (mine) { setLiked(mine.liked); setSaved(mine.saved); } }, [mine]);
+  useEffect(() => { setL(likes); setS(saves); }, [likes, saves]);
 
   useEffect(() => {
+    if (mine) return;
     let cancelled = false;
     (async () => {
       const h = await authHeaders();
@@ -43,7 +53,7 @@ export default function ReactionBar({ code, likes, saves, size = 'md', next }: {
       const c = r.counts?.[code]; if (c) { setL(c.likes); setS(c.saves); }
     })();
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, mine]);
 
   const toggle = async (kind: 'like' | 'save') => {
     if (busy) return; setBusy(true);
@@ -59,7 +69,7 @@ export default function ReactionBar({ code, likes, saves, size = 'md', next }: {
         return;
       }
       const j = await r.json();
-      if (r.ok) { setL(j.likes); setS(j.saves); }
+      if (r.ok) { setL(j.likes); setS(j.saves); onChange?.(code, { liked: kind === 'like' ? on : liked, saved: kind === 'save' ? on : saved }, j.likes, j.saves); }
       else { if (kind === 'like') { setLiked(!on); setL((v) => v - (on ? 1 : -1)); } else { setSaved(!on); setS((v) => v - (on ? 1 : -1)); } }
     } finally { setBusy(false); }
   };

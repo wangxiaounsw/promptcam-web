@@ -21,11 +21,13 @@ function deviceOf(request: NextRequest): string | null {
 
 export async function GET(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  const codes = (request.nextUrl.searchParams.get('codes') ?? '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean).slice(0, 200);
-  if (!codes.length) return no({ counts: {} }, 200);
+  const codes = (request.nextUrl.searchParams.get('codes') ?? '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean).slice(0, 1000);
   const db = admin();
+  const all = request.nextUrl.searchParams.get('all') === '1';
+  if (!codes.length && !all) return no({ counts: {} }, 200);
   const [user, device] = [await requestUser(request), deviceOf(request)];
-  const { data: ideas } = await db.from('idea_bank').select('id, code, like_count, save_count').in('code', codes);
+  const base = db.from('idea_bank').select('id, code, like_count, save_count').eq('is_published', true);
+  const { data: ideas } = all ? await base : await base.in('code', codes);
   const byId = new Map((ideas ?? []).map((i) => [i.id as string, i]));
   const mine: Record<string, { liked: boolean; saved: boolean }> = {};
   for (const i of ideas ?? []) mine[i.code as string] = { liked: false, saved: false };
