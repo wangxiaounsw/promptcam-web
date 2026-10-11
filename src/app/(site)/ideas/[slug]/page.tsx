@@ -4,6 +4,8 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { getPublished, listPublished } from '@/lib/content';
 import ScriptBody from './ScriptBody';
 import ScriptGate from './ScriptGate';
+import ScriptSection from './ScriptSection';
+import { renderArticle } from '@/lib/article';
 
 export const revalidate = 600;
 
@@ -39,7 +41,9 @@ export default async function IdeaPage({ params }: Props) {
   const idea = await getPublished(slug, false);
   if (!idea) notFound();
   // 老链接(比如只有编号的 /ideas/fx-0007)永久跳到正式网址,搜索引擎只记一个
+  if (idea.parentSlug) permanentRedirect(`/ideas/${idea.parentSlug}#${idea.code.toLowerCase()}`);
   if (idea.slug.toLowerCase() !== slug.toLowerCase()) permanentRedirect(`/ideas/${idea.slug}`);
+  const articleHtml = idea.article ? renderArticle(idea.article) : null;
 
   return (
     <main className="mx-auto max-w-2xl px-6 pb-24 pt-14">
@@ -92,6 +96,25 @@ export default async function IdeaPage({ params }: Props) {
         <p className="mt-6 text-lg leading-relaxed text-[var(--muted)]">{idea.summary}</p>
       )}
 
+      {/* 文章正文:公开,进 HTML,给搜索引擎 */}
+      {articleHtml && (
+        <article className="article mt-8" dangerouslySetInnerHTML={{ __html: articleHtml }} />
+      )}
+
+      {/* 文章下面挂的口播:每条一个播放器 + 折叠的稿子,会员可见 */}
+      {idea.children && idea.children.length > 0 && (
+        <section className="mt-12">
+          <h2 className="font-display mb-4 text-sm font-semibold tracking-wide text-[var(--muted)]">
+            这篇出的口播 · {idea.children.length} 条
+          </h2>
+          <div className="space-y-3">
+            {idea.children.map((k) => (
+              <ScriptSection key={k.code} {...k} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 免费样稿整篇进 HTML —— 这是故意的,让路人(和搜索引擎)看到稿子长什么样 */}
       {idea.isFree && idea.script ? (
         <ScriptBody script={idea.script} code={idea.code} badge="免费样稿" audioUrl={idea.audioUrl}>
@@ -102,7 +125,9 @@ export default async function IdeaPage({ params }: Props) {
           后可以申请开通。
         </ScriptBody>
       ) : (
-        idea.hasScript && <ScriptGate slug={idea.slug} code={idea.code} />
+        idea.hasScript && (idea.article
+          ? <ScriptSection slug={idea.slug} code={idea.code} title={idea.title} summary={null} hasAudio={idea.hasAudio} isFree={idea.isFree} />
+          : <ScriptGate slug={idea.slug} code={idea.code} />)
       )}
 
       {idea.refs.length > 0 && (

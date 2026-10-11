@@ -293,6 +293,9 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
                       {t}
                     </button>
                   ))}
+                  {i.article && (
+                    <span className="rounded-full bg-[var(--ink)] px-2 py-0.5 font-medium text-white">文章</span>
+                  )}
                   {i.isFree && (
                     <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 font-medium text-white">
                       免费样稿

@@ -38,6 +38,22 @@ export type PublicIdea = {
   audioUrl?: string;
   /** 这条有没有口播稿(没权限的人也该知道「有正文可看」) */
   hasScript: boolean;
+  /** 文章正文(Markdown),公开。有它的是「文章页」 */
+  article: string | null;
+  /** 文章页下面挂的口播(不含正文和音频,各自在浏览器里按权限取) */
+  children?: ChildIdea[];
+  /** 这条是某篇文章下面的口播:父页 slug,页面会跳过去 */
+  parentSlug?: string;
+};
+
+export type ChildIdea = {
+  code: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  hasScript: boolean;
+  hasAudio: boolean;
+  isFree: boolean;
 };
 
 type Row = {
@@ -54,6 +70,9 @@ type Row = {
   audio_script_hash: string | null;
   tags: string[] | null;
   source_url: string | null;
+  id?: string;
+  article?: string | null;
+  parent_id?: string | null;
 };
 
 function parseRefs(raw: unknown): Ref[] {
@@ -72,6 +91,7 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
   const isFree = Boolean(row.is_free);
   return {
     tags: Array.isArray(row.tags) ? row.tags : [],
+    article: row.article ?? null,
     hasAudio: audioReady(row),
     sourceUrl: row.source_url,
     code: row.code ?? '',
@@ -185,7 +205,7 @@ export async function canReadScript(request: NextRequest): Promise<boolean> {
 }
 
 const SELECT =
-  'code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url';
+  'id, code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url, article, parent_id';
 
 /** 已发布的全部,新的在前。列表页从不返回正文(免费的也不,列表用不着)。 */
 export async function listPublished(): Promise<PublicIdea[]> {
@@ -196,6 +216,7 @@ export async function listPublished(): Promise<PublicIdea[]> {
       .select(SELECT)
       .eq('is_published', true)
       .eq('is_active', true)
+      .is('parent_id', null)
       .order('published_at', { ascending: false }),
     industryNames(),
   ]);
@@ -203,7 +224,8 @@ export async function listPublished(): Promise<PublicIdea[]> {
     const { script: _drop, audioUrl: _drop2, ...rest } = toPublic(r, names, false);
     void _drop;
     void _drop2;
-    return rest;
+    // 列表只需要知道「有没有文章」,正文几千字不下发
+    return { ...rest, article: rest.article ? '1' : null };
   });
 }
 
@@ -232,7 +254,28 @@ export async function getPublished(
   allowed: boolean,
 ): Promise<PublicIdea | null> {
   const [row, names] = await Promise.all([fetchPublishedRow(slug), industryNames()]);
-  return row ? toPublic(row, names, allowed) : null;
+  if (!row) return null;
+  const pub = toPublic(row, names, allowed);
+  if (row.parent_id) {
+    // 挂在文章下面的口播:页面整体在父页,这里只告诉调用方该跳哪
+    const { data: parent } = await admin().from('idea_bank').select('slug, code').eq('id', row.parent_id).maybeSingle();
+    if (parent) pub.parentSlug = (parent.slug as string) ?? (parent.code as string).toLowerCase();
+    return pub;
+  }
+  if (row.id) {
+    const { data: kids } = await admin()
+      .from('idea_bank')
+      .select(SELECT)
+      .eq('parent_id', row.id)
+      .eq('is_published', true)
+      .eq('is_active', true)
+      .order('code');
+    pub.children = ((kids ?? []) as Row[]).map((k) => ({
+      code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
+      hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
+    }));
+  }
+  return pub;
 }
 
 /**
