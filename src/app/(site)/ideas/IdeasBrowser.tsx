@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import type { PublicIdea } from '@/lib/content';
 
-type Sort = 'new' | 'old' | 'industry';
+type Sort = 'new' | 'old' | 'industry' | 'hot';
 
 /**
  * 总览的搜索 / 筛选 / 排序 / 试听。
@@ -17,8 +17,8 @@ type Sort = 'new' | 'old' | 'industry';
  * 免费的谁都有;其余只有客户有。没拿到链接的显示锁,点了去详情页登录。
  * 整页只有一个 <audio>,点别的会把上一条停掉。
  */
-type Filters = { q: string; industry: string; tag: string; sort: Sort; free: boolean; audio: boolean };
-const EMPTY: Filters = { q: '', industry: '', tag: '', sort: 'new', free: false, audio: false };
+type Filters = { q: string; industry: string; tag: string; sort: Sort; free: boolean; audio: boolean; saved: boolean };
+const EMPTY: Filters = { q: '', industry: '', tag: '', sort: 'new', free: false, audio: false, saved: false };
 
 function fromSearch(search: string): Filters {
   const p = new URLSearchParams(search);
@@ -29,6 +29,7 @@ function fromSearch(search: string): Filters {
     sort: (p.get('sort') as Sort) || 'new',
     free: p.get('free') === '1',
     audio: p.get('audio') === '1',
+    saved: p.get('saved') === '1',
   };
 }
 
@@ -46,9 +47,9 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const { q, industry, tag, sort, free: onlyFree, audio: onlyAudio } = f;
+  const { q, industry, tag, sort, free: onlyFree, audio: onlyAudio, saved: onlySaved } = f;
 
-  const set = (patch: Partial<Record<'q' | 'industry' | 'tag' | 'sort' | 'free' | 'audio', string | null>>) => {
+  const set = (patch: Partial<Record<'q' | 'industry' | 'tag' | 'sort' | 'free' | 'audio' | 'saved', string | null>>) => {
     const next = new URLSearchParams(window.location.search);
     for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
     const qs = next.toString();
@@ -65,6 +66,26 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
+
+  // 「我的收藏」:打开开关才去问服务器;没登录就送去登录页
+  const [savedCodes, setSavedCodes] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!onlySaved) return;
+    let cancelled = false;
+    (async () => {
+      const headers: Record<string, string> = {};
+      try {
+        const sb = await browserSupabase();
+        const { data } = (await sb?.auth.getSession()) ?? { data: null };
+        if (data?.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+      } catch { /* 未登录 */ }
+      const r = await fetch('/api/reactions/mine', { headers }).then((x) => x.json()).catch(() => null);
+      if (cancelled) return;
+      if (r && r.signedIn === false) { window.location.href = '/login?next=' + encodeURIComponent('/ideas?saved=1'); return; }
+      setSavedCodes(new Set<string>(r?.codes ?? []));
+    })();
+    return () => { cancelled = true; };
+  }, [onlySaved]);
 
   const industries = useMemo(() => {
     const m = new Map<string, { name: string; n: number }>();
@@ -92,6 +113,7 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
       if (tag && !i.tags.includes(tag)) return false;
       if (onlyFree && !i.isFree) return false;
       if (onlyAudio && !i.hasAudio) return false;
+      if (onlySaved && !(savedCodes?.has(i.code))) return false;
       if (needle) {
         const hay = [i.title, i.summary ?? '', i.code, ...i.tags].join(' ').toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -100,6 +122,7 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
     });
     const at = (i: PublicIdea) => (i.publishedAt ? Date.parse(i.publishedAt) : 0);
     if (sort === 'old') list = [...list].sort((a, b) => at(a) - at(b));
+    else if (sort === 'hot') list = [...list].sort((a, b) => (b.likes + b.saves * 2) - (a.likes + a.saves * 2) || at(b) - at(a));
     else if (sort === 'industry')
       list = [...list].sort(
         (a, b) =>
@@ -107,7 +130,7 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
       );
     else list = [...list].sort((a, b) => at(b) - at(a));
     return list;
-  }, [ideas, q, industry, tag, sort, onlyFree, onlyAudio]);
+  }, [ideas, q, industry, tag, sort, onlyFree, onlyAudio, onlySaved, savedCodes]);
 
   // ── 试听 ──
   const [audio, setAudio] = useState<Record<string, string>>({});
@@ -173,6 +196,7 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
         >
           <option value="new">最新在前</option>
           <option value="old">最早在前</option>
+          <option value="hot">最多赞藏</option>
           <option value="industry">按行业</option>
         </select>
       </div>
@@ -196,6 +220,9 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
         </button>
         <button className={chip(onlyAudio)} onClick={() => set({ audio: onlyAudio ? null : '1' })}>
           有朗读
+        </button>
+        <button className={chip(onlySaved)} onClick={() => set({ saved: onlySaved ? null : '1' })}>
+          我的收藏
         </button>
       </div>
 
@@ -279,6 +306,9 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
                 )}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--muted)]">
                   <span className="font-mono">{i.code}</span>
+                  {(i.likes > 0 || i.saves > 0) && (
+                    <span className="tabular-nums" title="点赞 · 收藏">♡ {i.likes} · ☆ {i.saves}</span>
+                  )}
                   {i.industryName && (
                     <span className="rounded-full bg-[var(--accent-tint)] px-2 py-0.5 font-medium text-[var(--accent)]">
                       {i.industryName}

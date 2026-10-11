@@ -32,6 +32,9 @@ export type PublicIdea = {
   /** 有没有朗读(没权限的人也该知道「有的听」) */
   hasAudio: boolean;
   sourceUrl: string | null;
+  /** 点赞 / 收藏数,公开 */
+  likes: number;
+  saves: number;
   /** 有权限(或免费)时才有值 */
   script?: string;
   /** 朗读音频,和 script 同一套权限;稿子改过还没重念时不给 */
@@ -54,6 +57,8 @@ export type ChildIdea = {
   hasScript: boolean;
   hasAudio: boolean;
   isFree: boolean;
+  likes: number;
+  saves: number;
 };
 
 type Row = {
@@ -73,6 +78,8 @@ type Row = {
   id?: string;
   article?: string | null;
   parent_id?: string | null;
+  like_count?: number | null;
+  save_count?: number | null;
 };
 
 function parseRefs(raw: unknown): Ref[] {
@@ -94,6 +101,8 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
     article: row.article ?? null,
     hasAudio: audioReady(row),
     sourceUrl: row.source_url,
+    likes: row.like_count ?? 0,
+    saves: row.save_count ?? 0,
     code: row.code ?? '',
     slug: row.slug ?? (row.code ?? '').toLowerCase(),
     title: row.title,
@@ -205,7 +214,7 @@ export async function canReadScript(request: NextRequest): Promise<boolean> {
 }
 
 const SELECT =
-  'id, code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url, article, parent_id';
+  'id, code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url, article, parent_id, like_count, save_count';
 
 /** 已发布的全部,新的在前。列表页从不返回正文(免费的也不,列表用不着)。 */
 export async function listPublished(): Promise<PublicIdea[]> {
@@ -273,6 +282,7 @@ export async function getPublished(
     pub.children = ((kids ?? []) as Row[]).map((k) => ({
       code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
       hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
+      likes: k.like_count ?? 0, saves: k.save_count ?? 0,
     }));
   }
   return pub;

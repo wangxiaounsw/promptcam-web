@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptGate from './ScriptGate';
 import ScriptBody from './ScriptBody';
+import ReactionBar from '@/components/ReactionBar';
 
 /**
  * 文章页下面的一条口播:标题 + 编号 + 播放器 + 「展开口播稿」。
@@ -12,8 +13,8 @@ import ScriptBody from './ScriptBody';
  * 播放器和正文都按权限:没权限显示锁,点了去登录/申请(由 ScriptGate 处理)。
  */
 export default function ScriptSection({
-  slug, code, title, summary, hasAudio, isFree,
-}: { slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean }) {
+  slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false,
+}: { slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean }) {
   const [open, setOpen] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export default function ScriptSection({
         <span className="font-mono text-xs text-[var(--muted)]">{code}</span>
         {isFree && <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-medium text-white">免费样稿</span>}
         <h3 className="font-display min-w-0 flex-1 text-base font-semibold leading-snug">{title}</h3>
+        {!standalone && <ReactionBar code={code} likes={likes} saves={saves} size="sm" next={`/ideas/${slug}`} />}
       </div>
       {summary && <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{summary}</p>}
 

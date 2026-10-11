@@ -5,6 +5,7 @@ import { getPublished, listPublished } from '@/lib/content';
 import ScriptBody from './ScriptBody';
 import ScriptGate from './ScriptGate';
 import ScriptSection from './ScriptSection';
+import ReactionBar from '@/components/ReactionBar';
 import { renderArticle } from '@/lib/article';
 
 export const revalidate = 600;
@@ -96,6 +97,8 @@ export default async function IdeaPage({ params }: Props) {
         <p className="mt-6 text-lg leading-relaxed text-[var(--muted)]">{idea.summary}</p>
       )}
 
+      <div className="mt-5"><ReactionBar code={idea.code} likes={idea.likes} saves={idea.saves} /></div>
+
       {/* 文章正文:公开,进 HTML,给搜索引擎 */}
       {articleHtml && (
         <article className="article mt-8" dangerouslySetInnerHTML={{ __html: articleHtml }} />
@@ -126,7 +129,7 @@ export default async function IdeaPage({ params }: Props) {
         </ScriptBody>
       ) : (
         idea.hasScript && (idea.article
-          ? <ScriptSection slug={idea.slug} code={idea.code} title={idea.title} summary={null} hasAudio={idea.hasAudio} isFree={idea.isFree} />
+          ? <ScriptSection slug={idea.slug} code={idea.code} title={idea.title} summary={null} hasAudio={idea.hasAudio} isFree={idea.isFree} likes={idea.likes} saves={idea.saves} standalone />
           : <ScriptGate slug={idea.slug} code={idea.code} />)
       )}
 
