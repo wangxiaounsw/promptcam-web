@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { accessFor, fetchPublishedRow, listPublished, rowToPublic } from '@/lib/content';
+import { accessFor, getPublished, listPublished } from '@/lib/content';
 
 export const runtime = 'nodejs';
 
@@ -20,9 +20,10 @@ export async function GET(request: NextRequest) {
     );
   }
   // 权限和稿子并行取,互不依赖
-  const [access, row] = await Promise.all([accessFor(request), fetchPublishedRow(slug)]);
-  if (!row) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
-  const idea = await rowToPublic(row, access.allowed);
+  // 单篇连同挂在下面的口播一起给(文章页用);App 和网站同一套
+  const access = await accessFor(request);
+  const idea = await getPublished(slug, access.allowed);
+  if (!idea) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
   return NextResponse.json(
     {
       idea,
