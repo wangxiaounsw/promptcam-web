@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     record?: {
       user_id?: string;
       company?: string;
+      industry?: string | null;
       contact?: string | null;
       note?: string | null;
     };
@@ -39,9 +40,15 @@ export async function POST(request: NextRequest) {
   }
 
   let from = '';
+  let industry: string | null = r.industry ?? null;
   try {
-    const { data } = await admin().auth.admin.getUserById(r.user_id);
+    const db = admin();
+    const [{ data }, { data: ind }] = await Promise.all([
+      db.auth.admin.getUserById(r.user_id),
+      r.industry ? db.from('industries').select('name_zh').eq('key', r.industry).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
     from = data?.user?.email ?? '';
+    if (ind?.name_zh) industry = ind.name_zh as string;
   } catch {
     /* 拿不到邮箱也照发 */
   }
@@ -49,6 +56,7 @@ export async function POST(request: NextRequest) {
   const mailed = await mailAccessRequested({
     from,
     company: r.company,
+    industry,
     contact: r.contact ?? null,
     note: r.note ?? null,
   });

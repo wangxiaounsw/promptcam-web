@@ -79,6 +79,7 @@ export function mailScriptReady(opts: {
 export function mailAccessRequested(opts: {
   from: string;
   company: string;
+  industry?: string | null;
   contact?: string | null;
   note?: string | null;
 }): Promise<boolean> {
@@ -91,7 +92,7 @@ export function mailAccessRequested(opts: {
 <p style="margin:0 0 6px;font-size:13px;color:#0f7b45;font-weight:700">申请成为企业用户</p>
 <h1 style="margin:0 0 6px;font-size:20px;line-height:1.4">${esc(opts.company)}</h1>
 <p style="margin:0 0 18px;font-size:13px;color:#55605a">
-  ${esc(opts.contact || '')}${opts.contact ? ' · ' : ''}${esc(opts.from || '未知账号')}
+  ${opts.industry ? `${esc(opts.industry)} · ` : ''}${esc(opts.contact || '')}${opts.contact ? ' · ' : ''}${esc(opts.from || '未知账号')}
 </p>
 ${
   opts.note

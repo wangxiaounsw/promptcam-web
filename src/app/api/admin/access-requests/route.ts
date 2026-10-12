@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     } else {
       const { data: created, error } = await db
         .from('organizations')
-        .insert({ name: req.company, is_active: true })
+        .insert({ name: req.company, is_active: true, industry: req.industry ?? null })
         .select('id')
         .single();
       if (error || !created) return no({ error: '建公司失败' }, 502);
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   // 4：申请人本人
   const { error: pErr } = await db
     .from('profiles')
-    .update({ org_id: orgId, is_fordexa_client: true })
+    .update({ org_id: orgId, is_fordexa_client: true, ...(req.industry ? { industry: req.industry } : {}) })
     .eq('id', req.user_id);
   if (pErr) return no({ error: '开通失败' }, 502);
 

@@ -74,17 +74,21 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
       <section className="mt-10 rounded-2xl bg-[var(--accent-tint)] p-7">
         <h2 className="font-display mb-2 text-lg font-semibold">完整口播稿</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-          这条写好了能直接念的口播稿，给 Fordexa 的客户。
-          合作公司下的同事都能看 —— 用公司邮箱登录就行，不用一人一个账号。
+          这条写好了能直接念的口播稿，给开通的 Fordexa 客户。
+          开通后整家公司的人都能看，用公司邮箱登录就行，不用一人一个账号。
         </p>
         <Link
-          href={`/login?next=${encodeURIComponent(`/ideas/${slug}`)}`}
-          className="mt-5 inline-block rounded-xl bg-[var(--accent)] px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+          href="/apply"
+          className="mt-5 inline-block rounded-full bg-[var(--accent)] px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
         >
-          登录后查看
+          申请开通
         </Link>
         <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
-          还不是客户？登录后可以直接申请开通。
+          已经开通了？{' '}
+          <Link className="text-[var(--accent)] hover:underline" href={`/login?next=${encodeURIComponent(`/ideas/${slug}`)}`}>
+            登录
+          </Link>
+          就能看。
         </p>
       </section>
     );

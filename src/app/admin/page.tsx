@@ -54,6 +54,7 @@ type AccessRequest = {
   user_id: string;
   email: string;
   company: string;
+  industry: string | null;
   contact: string | null;
   note: string | null;
   status: 'pending' | 'approved' | 'declined';
@@ -996,6 +997,11 @@ export default function AdminPage() {
             <div key={a.id} className={card}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{a.company}</span>
+                {a.industry && (
+                  <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] text-[var(--accent)]">
+                    {industryName(a.industry)}
+                  </span>
+                )}
                 <div className="flex-1" />
                 <span className="text-xs text-[var(--muted)]">
                   {new Date(a.created_at).toLocaleDateString('zh-CN')}

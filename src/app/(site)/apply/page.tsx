@@ -15,7 +15,7 @@ export default function ApplyPage() {
       <h1 className="font-display text-3xl font-bold leading-[1.25]">成为 Fordexa 客户</h1>
       <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted)]">
         这是一项服务，不是 App 内购：我们按你的行业写选题、你照着念、我们剪好发出去。
-        先留下公司名，我们会联系你聊聊适合讲什么。
+        先留下公司和行业，我们会联系你聊聊适合讲什么。
       </p>
       <ApplyGate />
     </main>

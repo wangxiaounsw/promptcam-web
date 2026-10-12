@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const user = await requestUser(request);
   if (!user) return no({ error: 'Not signed in.' }, 401);
 
-  let body: { company?: string; contact?: string; note?: string };
+  let body: { company?: string; industry?: string; contact?: string; note?: string };
   try {
     body = await request.json();
   } catch {
@@ -34,10 +34,20 @@ export async function POST(request: NextRequest) {
   if (!company) return no({ error: '公司名不能为空。' }, 400);
   const contact = (body.contact ?? '').trim().slice(0, 80) || null;
   const note = (body.note ?? '').trim().slice(0, 500) || null;
+  const db = admin();
+  // 行业必须是字典里的键，不然外键会拒
+  const wanted = String(body.industry ?? '').trim();
+  const { data: ind } = wanted
+    ? await db.from('industries').select('key').eq('key', wanted).eq('is_active', true).maybeSingle()
+    : { data: null };
+  const industry = (ind?.key as string | undefined) ?? null;
+  if (!industry) return no({ error: '选一下行业。' }, 400);
 
-  const { error } = await admin()
+  const { error } = await db
     .from('access_requests')
-    .insert({ user_id: user.id, company, contact, note });
+    .insert({ user_id: user.id, company, industry, contact, note });
+  // 申请人自己的行业也记下，App 里的口播库会按它自动选中
+  await db.from('profiles').update({ industry }).eq('id', user.id);
   if (error) {
     if (error.message.includes('access_requests_one_pending')) {
       return no({ ok: true, pending: true }, 200);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 
 /**
@@ -9,6 +9,11 @@ import { browserSupabase } from '@/lib/browser-supabase';
  */
 export default function ApplyForm({ onDone, intro }: { onDone: () => void; intro?: string }) {
   const [company, setCompany] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [industries, setIndustries] = useState<{ key: string; name: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/industries').then((r) => r.json()).then((b) => setIndustries(b.industries ?? [])).catch(() => {});
+  }, []);
   const [contact, setContact] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -19,6 +24,7 @@ export default function ApplyForm({ onDone, intro }: { onDone: () => void; intro
 
   const submit = async () => {
     if (!company.trim()) return setErr('公司名得填');
+    if (!industry) return setErr('选一下行业，我们按行业写选题');
     setBusy(true);
     setErr('');
     try {
@@ -29,7 +35,7 @@ export default function ApplyForm({ onDone, intro }: { onDone: () => void; intro
       const res = await fetch('/api/access-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ company, contact, note }),
+        body: JSON.stringify({ company, industry, contact, note }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? '提交失败');
@@ -54,6 +60,12 @@ export default function ApplyForm({ onDone, intro }: { onDone: () => void; intro
           value={company}
           onChange={(e) => setCompany(e.target.value)}
         />
+        <select className={input} value={industry} onChange={(e) => setIndustry(e.target.value)}>
+          <option value="">你做哪一行</option>
+          {industries.map((i) => (
+            <option key={i.key} value={i.key}>{i.name}</option>
+          ))}
+        </select>
         <input
           className={input}
           placeholder="怎么联系你（微信 / 电话，可不填）"

@@ -206,7 +206,7 @@ export default function Home() {
             <h2 className="font-display mb-3 text-2xl font-bold md:text-3xl">还不是 Fordexa 客户？</h2>
             <p className="text-[15px] leading-relaxed text-white/70">
               App 可以免费下载，提词和录像都能用。但「收到我们写好的选题」「语音跟随」和「剪辑发布」是服务的一环，
-              不是 App 内购。留下公司名，我们会联系你聊聊适合讲什么。
+              不是 App 内购。留下公司和行业，我们会联系你聊聊适合讲什么。
             </p>
           </div>
           <div className="mt-6 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 md:mt-0">

@@ -36,6 +36,9 @@ function fromSearch(search: string): Filters {
   };
 }
 
+/** 没登录只给看这么多条。注册免费,登录后整个库都能翻;口播稿正文仍要开通 */
+const ANON_LIMIT = 10;
+
 export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; topics: Topic[] }) {
   /**
    * 筛选状态不用 Next 的 useSearchParams:那个钩子会让静态页把整段列表
@@ -277,7 +280,7 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
         </p>
       )}
       <ul className="mt-3 space-y-2">
-        {shown.map((i) => {
+        {(signedIn ? shown : shown.slice(0, ANON_LIMIT)).map((i) => {
           const canPlay = Boolean(audio[i.code]);
           return (
             <li key={i.code} className="flex items-start gap-3 rounded-xl bg-[var(--bg-raised)] px-4 py-4 transition-shadow hover:shadow-[0_6px_20px_-12px_rgba(18,24,21,0.2)] sm:px-5">
@@ -349,15 +352,28 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
         })}
       </ul>
 
+      {/* 第一层门:没登录且还有没露出来的,提示注册 */}
+      {!signedIn && shown.length > ANON_LIMIT && (
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--line)] p-5 text-center">
+          <p className="text-[15px] font-medium">还有 {shown.length - ANON_LIMIT} 条</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">免费注册就能翻整个库，用邮箱收个验证码就行。</p>
+          <Link
+            href="/login?next=%2Fideas"
+            className="mt-4 inline-flex items-center rounded-full bg-[var(--accent)] px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            注册 / 登录
+          </Link>
+        </div>
+      )}
+
       <div className="mt-16 rounded-2xl bg-[var(--bg-raised)] p-6 sm:p-8">
         <h2 className="font-display mb-3 text-xl font-semibold">想直接拿去拍？</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-          Fordexa 的客户打开 App 就能看到这些选题的完整口播稿，举起手机照着念，
-          录完发回给我们，剪辑和发布也由我们做。
-          <Link className="text-[var(--accent)] hover:underline" href="/login?next=%2Fideas">
-            登录
+          完整口播稿和剪辑发布是给开通客户的：打开 App 照着念，录完发回给我们，剪好帮你发出去。
+          <Link className="text-[var(--accent)] hover:underline" href="/apply">
+            申请开通
           </Link>
-          后可以直接申请开通，整家公司的人一起能看。
+          ，整家公司的人一起能用。
         </p>
       </div>
     </div>

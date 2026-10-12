@@ -42,7 +42,7 @@ export default function ApplyGate() {
       <section className={box}>
         <h2 className="font-display mb-2 text-lg font-semibold">先登录，再填一张表</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-          用你的工作邮箱登录（收一封验证码邮件就行，不用设密码）。登录后留下公司名，我们看过就开通，整家公司的人一起能用。
+          用你的工作邮箱登录（收一封验证码邮件就行，不用设密码）。登录后留下公司和行业，我们看过就开通，整家公司的人一起能用。
         </p>
         <Link href="/login?next=%2Fapply" className={btn}>登录</Link>
       </section>
@@ -68,5 +68,5 @@ export default function ApplyGate() {
       </section>
     );
   }
-  return <ApplyForm intro="留下公司名和联系方式，我们看过就开通。开通后选题、口播稿、朗读、剪辑发布都包含在服务里。" onDone={() => setState('pending')} />;
+  return <ApplyForm intro="留下公司、行业和联系方式，我们看过就开通。开通后选题、口播稿、朗读、剪辑发布都包含在服务里。" onDone={() => setState('pending')} />;
 }
