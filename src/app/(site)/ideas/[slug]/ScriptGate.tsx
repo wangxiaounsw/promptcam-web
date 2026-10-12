@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptBody from './ScriptBody';
+import ApplyForm from '@/components/ApplyForm';
 
 type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open';
 
@@ -106,77 +107,4 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
   }
 
   return <ApplyForm onDone={() => setState('pending')} />;
-}
-
-/** 登录了但没权限:就地申请,不用跳走。 */
-function ApplyForm({ onDone }: { onDone: () => void }) {
-  const [company, setCompany] = useState('');
-  const [contact, setContact] = useState('');
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  const input =
-    'w-full rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 text-[15px] outline-none focus:border-[var(--accent)]';
-
-  const submit = async () => {
-    if (!company.trim()) return setErr('公司名得填');
-    setBusy(true);
-    setErr('');
-    try {
-      const sb = await browserSupabase();
-      const { data } = (await sb?.auth.getSession()) ?? { data: null };
-      const token = data?.session?.access_token;
-      if (!token) throw new Error('登录态过期了，刷新一下');
-      const res = await fetch('/api/access-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ company, contact, note }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? '提交失败');
-      onDone();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="mt-10 rounded-2xl bg-[var(--accent-tint)] p-7">
-      <h2 className="font-display mb-2 text-lg font-semibold">申请开通</h2>
-      <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-        完整口播稿给 Fordexa 的客户。留下公司名，我们看过就开通，整家公司的人一起能看。
-      </p>
-      <div className="mt-5 space-y-3">
-        <input
-          className={input}
-          placeholder="公司名"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-        />
-        <input
-          className={input}
-          placeholder="怎么联系你（微信 / 电话，可不填）"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-        />
-        <textarea
-          className={`${input} min-h-[80px]`}
-          placeholder="备注：做什么行业、想拍什么内容……（可不填）"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        {err && <p className="text-sm text-[#b3261e]">{err}</p>}
-        <button
-          className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          disabled={busy}
-          onClick={submit}
-        >
-          提交申请
-        </button>
-      </div>
-    </section>
-  );
 }

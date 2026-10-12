@@ -15,6 +15,13 @@
 
 import PhoneMock from "@/components/PhoneMock";
 
+/** 全站唯一的主按钮样式:绿色胶囊。页头、首屏、底部 CTA 都是它 */
+const primary =
+  'inline-flex items-center rounded-full bg-[var(--accent)] px-6 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90';
+/** 次级:描边胶囊,给「了解更多」这类 */
+const secondary =
+  'mt-8 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--bg-raised)] px-5 py-2.5 text-[15px] font-medium text-[var(--ink)] transition-colors hover:border-[var(--ink)]';
+
 function Step({
   num,
   who,
@@ -51,9 +58,9 @@ function Step({
 
 function Feature({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-[var(--bg-raised)] p-6">
-      <h3 className="font-display mb-2 text-base font-semibold">{title}</h3>
-      <p className="text-sm leading-relaxed text-[var(--muted)]">{children}</p>
+    <div className="border-l-2 border-[var(--accent)] pl-5">
+      <dt className="font-display mb-1.5 text-base font-semibold">{title}</dt>
+      <dd className="text-[15px] leading-relaxed text-[var(--muted)]">{children}</dd>
     </div>
   );
 }
@@ -61,14 +68,14 @@ function Feature({ title, children }: { title: string; children: React.ReactNode
 export default function Home() {
   return (
     <main>
-      {/* Hero */}
-      <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-20 md:grid-cols-2 md:pt-28">
-        <div>
+      {/* Hero。手机端顺序:标题 → 手机 → 正文和按钮,最抓眼的东西不藏在一屏半以下 */}
+      <section className="relative mx-auto grid max-w-6xl gap-10 px-5 pb-20 pt-12 sm:px-6 md:grid-cols-2 md:items-center md:gap-x-14 md:gap-y-7 md:pb-24 md:pt-28">
+        <div className="md:self-end">
           <p
             className="rise mb-5 inline-block rounded-full bg-[var(--accent-tint)] px-4 py-1.5 text-xs font-semibold tracking-wide text-[var(--accent)]"
             style={{ animationDelay: "0.05s" }}
           >
-            Fordexa 口播助手
+            给律师、会计、移民中介的口播服务
           </p>
           <h1
             className="font-display rise text-balance text-4xl font-bold leading-[1.15] md:text-5xl"
@@ -80,36 +87,37 @@ export default function Home() {
             <br />
             <span className="text-[var(--accent)]">念一遍。</span>
           </h1>
+        </div>
+        <div className="rise md:col-start-2 md:row-span-2 md:row-start-1" style={{ animationDelay: "0.35s" }}>
+          <PhoneMock />
+        </div>
+        <div className="md:col-start-1 md:self-start">
           <p
-            className="rise mt-6 max-w-md text-lg leading-relaxed text-[var(--muted)]"
+            className="rise max-w-md text-lg leading-relaxed text-[var(--muted)]"
             style={{ animationDelay: "0.3s" }}
           >
-            律师、会计、移民中介都知道该发视频，但卡在「不知道讲什么、
-            不会写稿、懒得剪」。我们把前后两头接走：按你的行业写好选题推到你的
-            账号，剪辑和发布也由我们做。你只出镜念那一遍。
+            你知道该发视频，但卡在没东西讲、没空写、懒得剪。
+            我们把这三头都接走，你只出镜念那一遍。
           </p>
           <div
-            className="rise mt-9 flex flex-wrap items-center gap-4"
+            className="rise mt-8 flex flex-wrap items-center gap-x-5 gap-y-3"
             style={{ animationDelay: "0.45s" }}
           >
+            <a href="/apply" className={primary}>
+              申请开通
+            </a>
             <a
               href="https://apps.apple.com/au/app/prompt-cam/id6805019682"
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-6 py-3.5 font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+              className="text-[15px] font-medium text-[var(--ink)] underline decoration-[var(--line)] underline-offset-4 transition-colors hover:decoration-[var(--ink)]"
             >
-              App Store 下载
+              已是客户？下载 App
             </a>
-            <span className="text-sm text-[var(--muted)]">
-              iPhone · 需要 Fordexa 客户账号
-            </span>
           </div>
-        </div>
-        <div className="rise" style={{ animationDelay: "0.35s" }}>
-          <PhoneMock />
         </div>
       </section>
 
       {/* 服务链:首页只给骨架,展开在 /how */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
+      <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-6 md:pb-24">
         <h2 className="font-display mb-3 text-3xl font-bold">怎么运作</h2>
         <p className="mb-9 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
           你在整条链里只负责一件事 —— 对着手机念一遍。
@@ -128,65 +136,50 @@ export default function Home() {
             也不用研究平台规则。
           </Step>
         </div>
-        <p className="mt-8 text-[15px] text-[var(--muted)]">
-          <a className="font-medium text-[var(--accent)] hover:underline" href="/how">
-            稿子是怎么写出来的、为什么不写死数字 →
-          </a>
-        </p>
+        <a href="/how" className={secondary}>
+          稿子是怎么写出来的、为什么不写死数字
+          <span aria-hidden>→</span>
+        </a>
       </section>
 
-      {/* 灵感回路:这是客户唯一需要「主动」的地方,单独讲 */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="rounded-2xl bg-[var(--accent-tint)] p-8 md:p-10">
+      {/* 灵感回路:这是客户唯一需要「主动」的地方,单独讲。编号和分工标签和上面一套 */}
+      <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-6 md:pb-24">
+        <div className="rounded-2xl bg-[var(--accent-tint)] p-6 md:p-10">
           <p className="mb-3 text-xs font-semibold tracking-wide text-[var(--accent)]">
             反过来也行
           </p>
           <h2 className="font-display mb-4 text-2xl font-bold md:text-3xl">
             你想讲什么，说一句就行
           </h2>
-          <p className="mb-9 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+          <p className="mb-8 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
             你每天接的咨询里，哪些问题被反复问到，只有你知道。
             想到了就打开 App 说一句 —— 不用组织语言，不用写完整。
             剩下的调研和写稿交给我们。
           </p>
-          <ol className="grid gap-6 sm:grid-cols-3">
-            {[
-              [
-                "说一句",
-                "从锁屏或控制中心一键打开，开口就说。自动转成文字存进灵感库 —— 你在车上、在走廊都能记。",
-              ],
-              [
-                "提交给我们",
-                "想拍成视频的那条，点「提交给 Fordexa 写稿」。可以附一句补充：想讲给谁听，有没有遇到过的真实例子。",
-              ],
-              [
-                "等它变成稿子",
-                "我们调研、核实、写成能直接念的口播稿，送回你的口播库。App 里能看到走到哪一步了。",
-              ],
-            ].map(([title, body], i) => (
-              <li key={title}>
-                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-raised)] text-sm font-semibold text-[var(--accent)]">
-                  {i + 1}
-                </div>
-                <h3 className="font-display mb-2 text-base font-semibold">{title}</h3>
-                <p className="text-sm leading-relaxed text-[var(--muted)]">{body}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-9 text-sm leading-relaxed text-[var(--muted)]">
-            另外，我们也按你的行业整理了一批选题。懒得想的时候，翻一翻，
-            看中哪条点一下就行。{' '}
-            <a className="text-[var(--accent)] hover:underline" href="/ideas">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Step num="01" who="你" title="说一句">
+              从锁屏或控制中心一键打开，开口就说。自动转成文字存进灵感库 —— 你在车上、在走廊都能记。
+            </Step>
+            <Step num="02" who="你" title="提交给我们">
+              想拍成视频的那条，点「提交给 Fordexa 写稿」。可以附一句补充：想讲给谁听，有没有遇到过的真实例子。
+            </Step>
+            <Step num="03" who="Fordexa" title="等它变成稿子">
+              我们调研、核实、写成能直接念的口播稿，送回你的口播库。App 里能看到走到哪一步了。
+            </Step>
+          </div>
+          <p className="mt-8 text-sm leading-relaxed text-[var(--muted)]">
+            懒得想的时候，我们也按行业整理了一批选题，翻一翻看中哪条点一下就行。{' '}
+            <a className="font-medium text-[var(--accent)] hover:underline" href="/ideas">
               看看口播库 →
             </a>
           </p>
         </div>
       </section>
 
-      {/* App 里有什么 */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
+      {/* App 里有什么:四条功能,不再套卡片,换一种节奏 */}
+      <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-6 md:pb-24">
         <h2 className="font-display mb-8 text-3xl font-bold">App 里有什么</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
           <Feature title="台词不入镜">
             台词是画在屏幕上的浮层，相机流里根本没有它。不用反光板、不用额外设备、
             后期也不用裁。
@@ -203,39 +196,29 @@ export default function Home() {
             提词窗口可以拖到正对前摄的位置，当前要念的那行固定在阅读线上，
             下面还留着预读 —— 眼神不用来回找。
           </Feature>
-        </div>
+        </dl>
       </section>
 
-      {/* 不是客户的人进来了 */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
-        <div className="rounded-2xl bg-[var(--bg-raised)] p-8">
-          <h2 className="font-display mb-3 text-xl font-semibold">
-            还不是 Fordexa 客户？
-          </h2>
-          <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-            App 可以免费下载，提词和录像都能用。但「收到我们写好的选题」和
-            「语音跟随滚动」需要客户账号 —— 那部分是服务的一环，不是 App 内购。
-            想聊聊的话写信到{" "}
-            <a
-              className="text-[var(--accent)] hover:underline"
-              href="mailto:info@auguide.com.au"
-            >
-              info@auguide.com.au
+      {/* 路人的出口:和全页一样左对齐、通宽,主动作还是那一个绿按钮 */}
+      <section className="mx-auto max-w-6xl px-5 pb-6 sm:px-6 md:pb-10">
+        <div className="rounded-2xl bg-[var(--ink)] p-7 text-[var(--bg)] md:flex md:items-end md:justify-between md:gap-10 md:p-10">
+          <div className="max-w-2xl">
+            <h2 className="font-display mb-3 text-2xl font-bold md:text-3xl">还不是 Fordexa 客户？</h2>
+            <p className="text-[15px] leading-relaxed text-white/70">
+              App 可以免费下载，提词和录像都能用。但「收到我们写好的选题」「语音跟随」和「剪辑发布」是服务的一环，
+              不是 App 内购。留下公司名，我们会联系你聊聊适合讲什么。
+            </p>
+          </div>
+          <div className="mt-6 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 md:mt-0">
+            <a href="/apply" className={primary}>
+              申请开通
             </a>
-            ，或者看看{" "}
-            <a
-              className="text-[var(--accent)] hover:underline"
-              href="https://www.fordexa.com"
-              target="_blank"
-              rel="noopener"
-            >
-              fordexa.com
+            <a className="text-[15px] text-white/70 underline decoration-white/30 underline-offset-4 hover:text-white" href="mailto:info@fordexa.com">
+              info@fordexa.com
             </a>
-            。
-          </p>
+          </div>
         </div>
       </section>
-
     </main>
   );
 }

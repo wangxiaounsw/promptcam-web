@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requestUser } from '@/lib/auth';
+import { accessFor } from '@/lib/content';
 
 export const runtime = 'nodejs';
 
 const no = (body: object, status: number) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+
+/** 我是谁:没登录 / 已是客户 / 申请待批 / 可以申请。/apply 页按它选显示 */
+export async function GET(request: NextRequest) {
+  if (!configured) return no({ error: 'Server not configured.' }, 503);
+  const a = await accessFor(request);
+  return no({ signedIn: Boolean(a.user), allowed: a.allowed, pending: a.pending }, 200);
+}
 
 /**
  * 网站上的「申请开通」。和 App 里那张表单落到同一张 access_requests,
