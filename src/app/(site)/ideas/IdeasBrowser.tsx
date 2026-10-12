@@ -270,17 +270,17 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
         )}
       </div>
 
-      {/* 列表：分隔线，不套盒子。每条三行：标题、一句摘要、一行元信息 */}
+      {/* 列表：一条一张轻卡片，每条三行：标题、一句摘要、一行元信息 */}
       {!shown.length && (
         <p className="mt-8 text-[var(--muted)]">
           {ideas.length ? '没有符合条件的，换个筛选试试。' : '选题还在整理中，过几天再来看看。'}
         </p>
       )}
-      <ul className="mt-2 divide-y divide-[var(--line)]">
+      <ul className="mt-3 space-y-2">
         {shown.map((i) => {
           const canPlay = Boolean(audio[i.code]);
           return (
-            <li key={i.code} className="flex items-start gap-3 py-4 sm:py-5">
+            <li key={i.code} className="flex items-start gap-3 rounded-xl bg-[var(--bg-raised)] px-4 py-4 transition-shadow hover:shadow-[0_6px_20px_-12px_rgba(18,24,21,0.2)] sm:px-5">
               <div className="min-w-0 flex-1">
                 <Link href={`/ideas/${i.slug}`} className="block">
                   <h3 className="font-display text-[17px] font-semibold leading-snug hover:text-[var(--accent)] sm:text-lg">
@@ -292,22 +292,25 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
                     {i.summary}
                   </p>
                 )}
-                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
-                  {[
-                    <span key="ind">{i.industryName ?? '通用'}</span>,
-                    i.topicName && <span key="top">{i.topicName}</span>,
-                    i.isFree && <span key="free" className="font-medium text-[var(--accent)]">免费样稿</span>,
-                    i.article && <span key="art">有文章</span>,
-                    i.publishedAt && <time key="at" dateTime={i.publishedAt}>{dateOf(i.publishedAt)}</time>,
-                  ]
-                    .filter(Boolean)
-                    .map((el, k) => (
-                      <span key={k} className="inline-flex items-center gap-x-2">
-                        {k > 0 && <span aria-hidden>·</span>}
-                        {el}
-                      </span>
-                    ))}
-                  <span className="ml-auto">
+                <div className="mt-2 flex items-center gap-3 text-xs text-[var(--muted)]">
+                  {/* 左边超长就截断，右边的赞和收藏固定同一行 */}
+                  <div className="min-w-0 flex-1 truncate">
+                    {[
+                      <span key="ind">{i.industryName ?? '通用'}</span>,
+                      i.topicName && <span key="top">{i.topicName}</span>,
+                      i.isFree && <span key="free" className="font-medium text-[var(--accent)]">免费样稿</span>,
+                      i.article && <span key="art">有文章</span>,
+                      i.publishedAt && <time key="at" dateTime={i.publishedAt}>{dateOf(i.publishedAt)}</time>,
+                    ]
+                      .filter(Boolean)
+                      .map((el, k) => (
+                        <span key={k}>
+                          {k > 0 && <span aria-hidden className="mx-1.5">·</span>}
+                          {el}
+                        </span>
+                      ))}
+                  </div>
+                  <span className="shrink-0">
                     <ReactionBar code={i.code} likes={likesOf(i)} saves={savesOf(i)} plain next="/ideas" mine={mine[i.code] ?? { liked: false, saved: false }} onChange={onReact} />
                   </span>
                 </div>
