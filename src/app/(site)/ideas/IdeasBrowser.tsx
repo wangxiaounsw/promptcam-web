@@ -101,16 +101,14 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
   const likesOf = (i: PublicIdea) => counts[i.code]?.likes ?? i.likes;
   const savesOf = (i: PublicIdea) => counts[i.code]?.saves ?? i.saves;
 
+  // 行业胶囊。没填行业的是「通用」,哪个行业都能讲,所以不单独成一个胶囊,选任何行业都带着它们
   const industries = useMemo(() => {
     const m = new Map<string, { name: string; n: number }>();
     for (const i of ideas) {
-      const key = i.industry ?? '';
-      const name = i.industryName ?? '通用';
-      m.set(key, { name, n: (m.get(key)?.n ?? 0) + 1 });
+      if (!i.industry) continue;
+      m.set(i.industry, { name: i.industryName ?? i.industry, n: (m.get(i.industry)?.n ?? 0) + 1 });
     }
-    return [...m.entries()]
-      .map(([key, v]) => ({ key, ...v }))
-      .sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : b.n - a.n));
+    return [...m.entries()].map(([key, v]) => ({ key, ...v })).sort((a, b) => b.n - a.n);
   }, [ideas]);
 
   // 当前行业的主题,只列有口播的,按主题表顺序
@@ -123,7 +121,8 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = ideas.filter((i) => {
-      if (industry && (i.industry ?? '') !== industry) return false;
+      // 通用(没填行业)的在任何行业下都显示
+      if (industry && i.industry && i.industry !== industry) return false;
       if (topic && (i.topic ?? '') !== topic) return false;
       if (tag && !i.tags.includes(tag)) return false;
       if (onlyFree && !i.isFree) return false;
@@ -230,7 +229,7 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
           全部
         </button>
         {industries.map((i) => (
-          <button key={i.key} className={chip(industry === i.key)} onClick={() => set({ industry: i.key || null, topic: null, tag: null })}>
+          <button key={i.key} className={chip(industry === i.key)} onClick={() => set({ industry: industry === i.key ? null : i.key, topic: null, tag: null })}>
             {i.name}
           </button>
         ))}
@@ -295,7 +294,7 @@ export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; t
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
                   {[
-                    i.industryName && <span key="ind">{i.industryName}</span>,
+                    <span key="ind">{i.industryName ?? '通用'}</span>,
                     i.topicName && <span key="top">{i.topicName}</span>,
                     i.isFree && <span key="free" className="font-medium text-[var(--accent)]">免费样稿</span>,
                     i.article && <span key="art">有文章</span>,
