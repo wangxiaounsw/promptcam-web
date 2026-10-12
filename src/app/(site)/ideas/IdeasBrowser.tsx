@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ReactionBar, { type Mine } from '@/components/ReactionBar';
 import type { PublicIdea, Topic } from '@/lib/content';
+import { ANON_LIMIT } from '@/lib/limits';
 
 type Sort = 'new' | 'hot';
 
@@ -36,8 +37,6 @@ function fromSearch(search: string): Filters {
   };
 }
 
-/** 没登录只给看这么多条。注册免费,登录后整个库都能翻;口播稿正文仍要开通 */
-const ANON_LIMIT = 10;
 
 export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; topics: Topic[] }) {
   /**
