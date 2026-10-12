@@ -30,8 +30,10 @@ async function authHeaders(): Promise<Record<string, string>> {
  */
 export type Mine = { liked: boolean; saved: boolean };
 
-export default function ReactionBar({ code, likes, saves, size = 'md', next, mine, onChange }: {
+export default function ReactionBar({ code, likes, saves, size = 'md', plain = false, next, mine, onChange }: {
   code: string; likes: number; saves: number; size?: 'sm' | 'md'; next?: string;
+  /** 列表行用：不画边框，只有图标和数字 */
+  plain?: boolean;
   /** 列表页一次拉好全部状态传进来,就不每行各自请求一次 */
   mine?: Mine;
   onChange?: (code: string, m: Mine, likes: number, saves: number) => void;
@@ -76,9 +78,11 @@ export default function ReactionBar({ code, likes, saves, size = 'md', next, min
 
   const base = size === 'sm' ? 'gap-1 px-2 py-1 text-xs' : 'gap-1.5 px-3 py-1.5 text-sm';
   const btn = (active: boolean) =>
-    `inline-flex items-center rounded-full border transition-colors ${base} ${active ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'}`;
+    plain
+      ? `inline-flex items-center gap-1 text-xs transition-colors ${active ? 'text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`
+      : `inline-flex items-center rounded-full border transition-colors ${base} ${active ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'}`;
   return (
-    <span className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+    <span className={`inline-flex items-center ${plain ? 'gap-3' : 'gap-2'}`} onClick={(e) => e.stopPropagation()}>
       <button className={btn(liked)} aria-pressed={liked} onClick={(e) => { e.preventDefault(); toggle('like'); }} title="点赞">
         <svg width="14" height="14" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
         {l}

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { listPublished } from '@/lib/content';
+import { listPublished, listTopics } from '@/lib/content';
 import IdeasBrowser from './IdeasBrowser';
 
 /**
@@ -26,20 +26,17 @@ export const metadata: Metadata = {
 };
 
 export default async function IdeasPage() {
-  const ideas = await listPublished();
+  const [ideas, topics] = await Promise.all([listPublished(), listTopics()]);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-24 pt-16">
-      <p className="mb-4 text-xs font-semibold tracking-wide text-[var(--accent)]">口播库</p>
-      <h1 className="font-display text-balance text-4xl font-bold leading-[1.2] md:text-5xl">
-        该讲什么，我们已经想好了
-      </h1>
-      <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-        每条选题都是客户真问过的问题，查过出处才写。参考文献公开，
-        完整口播稿和朗读给 Fordexa 的客户 —— 打开 App 照着念就行。
+    <main className="mx-auto max-w-4xl px-5 pb-24 pt-8 sm:px-6 sm:pt-12">
+      {/* 列表页是工具页：一行标题一句话，故事留给首页讲 */}
+      <h1 className="font-display text-2xl font-bold leading-tight sm:text-3xl">口播库</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">
+        每条都是客户真问过的问题，查过出处才写。完整口播稿和朗读给 Fordexa 的客户。
       </p>
 
-      <IdeasBrowser ideas={ideas} />
+      <IdeasBrowser ideas={ideas} topics={topics} />
     </main>
   );
 }

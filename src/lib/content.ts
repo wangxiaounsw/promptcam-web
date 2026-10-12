@@ -24,6 +24,9 @@ export type PublicIdea = {
   summary: string | null;
   industry: string | null;
   industryName: string | null;
+  /** 主题:行业下的第二层筛选,键和名 */
+  topic: string | null;
+  topicName: string | null;
   refs: Ref[];
   publishedAt: string | null;
   /** 免费样稿:整篇公开,不登录也能看 */
@@ -70,6 +73,7 @@ type Row = {
   title: string;
   summary: string | null;
   industry: string | null;
+  topic?: string | null;
   refs: unknown;
   script: string | null;
   published_at: string | null;
@@ -97,7 +101,7 @@ function audioReady(row: Row): boolean {
   return Boolean(row.script && row.audio_url && row.audio_script_hash === scriptHash(row.script));
 }
 
-function toPublic(row: Row, names: Map<string, string>, allowed: boolean): PublicIdea {
+function toPublic(row: Row, names: Map<string, string>, allowed: boolean, topics: Map<string, string> = new Map()): PublicIdea {
   const isFree = Boolean(row.is_free);
   return {
     tags: Array.isArray(row.tags) ? row.tags : [],
@@ -112,6 +116,8 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean): Publi
     summary: row.summary,
     industry: row.industry,
     industryName: row.industry ? (names.get(row.industry) ?? row.industry) : null,
+    topic: row.topic ?? null,
+    topicName: row.topic ? (topics.get(`${row.industry ?? ''}/${row.topic}`) ?? row.topic) : null,
     refs: parseRefs(row.refs),
     publishedAt: row.published_at,
     isFree,
@@ -131,6 +137,24 @@ async function industryNames(): Promise<Map<string, string>> {
   const map = new Map((data ?? []).map((i) => [i.key as string, i.name_zh as string]));
   namesCache = { at: Date.now(), map };
   return map;
+}
+
+export type Topic = { industry: string; key: string; name: string };
+let topicsCache: { at: number; list: Topic[] } | null = null;
+
+/** 主题表,公开只读,同样十分钟缓存。列表页画第二行胶囊用 */
+export async function listTopics(): Promise<Topic[]> {
+  if (!configured) return [];
+  if (topicsCache && Date.now() - topicsCache.at < 600_000) return topicsCache.list;
+  const { data } = await admin().from('topics').select('industry, key, name_zh').eq('is_active', true).order('sort_order');
+  const list = (data ?? []).map((t) => ({ industry: t.industry as string, key: t.key as string, name: t.name_zh as string }));
+  topicsCache = { at: Date.now(), list };
+  return list;
+}
+
+/** 「行业/主题键」→ 中文名 */
+async function topicNames(): Promise<Map<string, string>> {
+  return new Map((await listTopics()).map((t) => [`${t.industry}/${t.key}`, t.name]));
 }
 
 /**
@@ -217,12 +241,12 @@ export async function canReadScript(request: NextRequest): Promise<boolean> {
 }
 
 const SELECT =
-  'id, code, slug, title, summary, industry, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url, article, parent_id, like_count, save_count';
+  'id, code, slug, title, summary, industry, topic, refs, script, published_at, is_free, audio_url, audio_script_hash, tags, source_url, article, parent_id, like_count, save_count';
 
 /** 已发布的全部,新的在前。列表页从不返回正文(免费的也不,列表用不着)。 */
 export async function listPublished(): Promise<PublicIdea[]> {
   if (!configured) return [];
-  const [{ data }, names] = await Promise.all([
+  const [{ data }, names, topics] = await Promise.all([
     admin()
       .from('idea_bank')
       .select(SELECT)
@@ -231,9 +255,10 @@ export async function listPublished(): Promise<PublicIdea[]> {
       .is('parent_id', null)
       .order('published_at', { ascending: false }),
     industryNames(),
+    topicNames(),
   ]);
   return ((data ?? []) as Row[]).map((r) => {
-    const { script: _drop, audioUrl: _drop2, ...rest } = toPublic(r, names, false);
+    const { script: _drop, audioUrl: _drop2, ...rest } = toPublic(r, names, false, topics);
     void _drop;
     void _drop2;
     // 列表只需要知道「有没有文章」,正文几千字不下发

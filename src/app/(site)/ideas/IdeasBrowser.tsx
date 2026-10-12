@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ReactionBar, { type Mine } from '@/components/ReactionBar';
-import type { PublicIdea } from '@/lib/content';
+import type { PublicIdea, Topic } from '@/lib/content';
 
-type Sort = 'new' | 'old' | 'industry' | 'hot';
+type Sort = 'new' | 'hot';
 
 /**
  * 总览的搜索 / 筛选 / 排序 / 试听。
@@ -18,16 +18,17 @@ type Sort = 'new' | 'old' | 'industry' | 'hot';
  * 免费的谁都有;其余只有客户有。没拿到链接的显示锁,点了去详情页登录。
  * 整页只有一个 <audio>,点别的会把上一条停掉。
  */
-type Filters = { q: string; industry: string; tag: string; sort: Sort; free: boolean; audio: boolean; saved: boolean; liked: boolean };
-const EMPTY: Filters = { q: '', industry: '', tag: '', sort: 'new', free: false, audio: false, saved: false, liked: false };
+type Filters = { q: string; industry: string; topic: string; tag: string; sort: Sort; free: boolean; audio: boolean; saved: boolean; liked: boolean };
+const EMPTY: Filters = { q: '', industry: '', topic: '', tag: '', sort: 'new', free: false, audio: false, saved: false, liked: false };
 
 function fromSearch(search: string): Filters {
   const p = new URLSearchParams(search);
   return {
     q: p.get('q') ?? '',
     industry: p.get('industry') ?? '',
+    topic: p.get('topic') ?? '',
     tag: p.get('tag') ?? '',
-    sort: (p.get('sort') as Sort) || 'new',
+    sort: p.get('sort') === 'hot' ? 'hot' : 'new',
     free: p.get('free') === '1',
     audio: p.get('audio') === '1',
     saved: p.get('saved') === '1',
@@ -35,7 +36,7 @@ function fromSearch(search: string): Filters {
   };
 }
 
-export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
+export default function IdeasBrowser({ ideas, topics }: { ideas: PublicIdea[]; topics: Topic[] }) {
   /**
    * 筛选状态不用 Next 的 useSearchParams:那个钩子会让静态页把整段列表
    * 留到浏览器再画,HTML 里就没有列表了,Google 看到的是空页。
@@ -49,9 +50,9 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const { q, industry, tag, sort, free: onlyFree, audio: onlyAudio, saved: onlySaved, liked: onlyLiked } = f;
+  const { q, industry, topic, tag, sort, free: onlyFree, audio: onlyAudio, saved: onlySaved, liked: onlyLiked } = f;
 
-  const set = (patch: Partial<Record<'q' | 'industry' | 'tag' | 'sort' | 'free' | 'audio' | 'saved' | 'liked', string | null>>) => {
+  const set = (patch: Partial<Record<'q' | 'industry' | 'topic' | 'tag' | 'sort' | 'free' | 'audio' | 'saved' | 'liked', string | null>>) => {
     const next = new URLSearchParams(window.location.search);
     for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
     const qs = next.toString();
@@ -112,17 +113,18 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
       .sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : b.n - a.n));
   }, [ideas]);
 
-  const tags = useMemo(() => {
-    const m = new Map<string, number>();
-    const pool = industry ? ideas.filter((i) => (i.industry ?? '') === industry) : ideas;
-    for (const i of pool) for (const t of i.tags) m.set(t, (m.get(t) ?? 0) + 1);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
-  }, [ideas, industry]);
+  // 当前行业的主题,只列有口播的,按主题表顺序
+  const topicChips = useMemo(() => {
+    if (!industry) return [];
+    const have = new Set(ideas.filter((i) => (i.industry ?? '') === industry).map((i) => i.topic ?? ''));
+    return topics.filter((t) => t.industry === industry && have.has(t.key));
+  }, [ideas, topics, industry]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = ideas.filter((i) => {
       if (industry && (i.industry ?? '') !== industry) return false;
+      if (topic && (i.topic ?? '') !== topic) return false;
       if (tag && !i.tags.includes(tag)) return false;
       if (onlyFree && !i.isFree) return false;
       if (onlyAudio && !i.hasAudio) return false;
@@ -135,17 +137,11 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
       return true;
     });
     const at = (i: PublicIdea) => (i.publishedAt ? Date.parse(i.publishedAt) : 0);
-    if (sort === 'old') list = [...list].sort((a, b) => at(a) - at(b));
-    else if (sort === 'hot') list = [...list].sort((a, b) => (likesOf(b) + savesOf(b) * 2) - (likesOf(a) + savesOf(a) * 2) || at(b) - at(a));
-    else if (sort === 'industry')
-      list = [...list].sort(
-        (a, b) =>
-          (a.industryName ?? '通用').localeCompare(b.industryName ?? '通用', 'zh') || at(b) - at(a),
-      );
+    if (sort === 'hot') list = [...list].sort((a, b) => (likesOf(b) + savesOf(b) * 2) - (likesOf(a) + savesOf(a) * 2) || at(b) - at(a));
     else list = [...list].sort((a, b) => at(b) - at(a));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ideas, q, industry, tag, sort, onlyFree, onlyAudio, onlySaved, onlyLiked, mine, counts]);
+  }, [ideas, q, industry, topic, tag, sort, onlyFree, onlyAudio, onlySaved, onlyLiked, mine, counts]);
 
   // ── 试听 ──
   const [audio, setAudio] = useState<Record<string, string>>({});
@@ -186,181 +182,172 @@ export default function IdeasBrowser({ ideas }: { ideas: PublicIdea[] }) {
   };
 
   const chip = (active: boolean) =>
-    `rounded-full px-3 py-1.5 text-sm transition-colors ${
+    `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm transition-colors ${
       active
-        ? 'bg-[var(--accent)] text-white'
+        ? 'bg-[var(--ink)] text-white'
         : 'bg-[var(--bg-raised)] text-[var(--muted)] hover:text-[var(--ink)]'
     }`;
+  const sub = (active: boolean) =>
+    `shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors ${
+      active
+        ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent)]'
+        : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'
+    }`;
+  const small = (active: boolean) =>
+    `whitespace-nowrap transition-colors ${active ? 'font-medium text-[var(--accent)]' : 'hover:text-[var(--ink)]'}`;
+  const dateOf = (iso: string) => {
+    const d = new Date(iso);
+    const thisYear = d.getFullYear() === new Date().getFullYear();
+    return d.toLocaleDateString('zh-CN', thisYear ? { month: 'long', day: 'numeric' } : { year: 'numeric', month: 'long', day: 'numeric' });
+  };
 
   return (
-    <div className="mt-12">
+    <div className="mt-6">
       <audio ref={player} onEnded={() => setPlaying(null)} onPause={() => setPlaying(null)} />
 
-      {/* 搜索 + 排序 */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* 第一层：搜索 + 排序 */}
+      <div className="flex items-center gap-2">
         <input
           className="min-w-0 flex-1 rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] px-4 py-2.5 text-[15px] outline-none focus:border-[var(--accent)]"
-          placeholder="搜标题、摘要、标签，或者编号 FX-0007"
+          placeholder="搜标题、标签或编号"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
         <select
-          className="rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] px-3 py-2.5 text-sm"
+          aria-label="排序"
+          className="shrink-0 rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] px-3 py-2.5 text-sm"
           value={sort}
           onChange={(e) => set({ sort: e.target.value === 'new' ? null : e.target.value })}
         >
-          <option value="new">最新在前</option>
-          <option value="old">最早在前</option>
-          <option value="hot">最多赞藏</option>
-          <option value="industry">按行业</option>
+          <option value="new">最新</option>
+          <option value="hot">最热</option>
         </select>
       </div>
 
-      {/* 行业下拉 + 两个开关 */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <select
-          className="rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] px-3 py-2 text-sm"
-          value={industry}
-          onChange={(e) => set({ industry: e.target.value || null, tag: null })}
-        >
-          <option value="">全部行业 · {ideas.length}</option>
-          {industries.map((i) => (
-            <option key={i.key} value={i.key}>
-              {i.name} · {i.n}
-            </option>
-          ))}
-        </select>
-        <button className={chip(onlyFree)} onClick={() => set({ free: onlyFree ? null : '1' })}>
-          免费样稿
+      {/* 第二层：行业，一行横滑不换行 */}
+      <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
+        <button className={chip(!industry)} onClick={() => set({ industry: null, topic: null, tag: null })}>
+          全部
         </button>
-        <button className={chip(onlyAudio)} onClick={() => set({ audio: onlyAudio ? null : '1' })}>
-          有朗读
-        </button>
-        <button className={chip(onlyLiked)} onClick={() => set({ liked: onlyLiked ? null : '1' })}>
-          我赞过的
-        </button>
-        <button className={chip(onlySaved)} onClick={() => set({ saved: onlySaved ? null : '1' })}>
-          我的收藏
-        </button>
+        {industries.map((i) => (
+          <button key={i.key} className={chip(industry === i.key)} onClick={() => set({ industry: i.key || null, topic: null, tag: null })}>
+            {i.name}
+          </button>
+        ))}
       </div>
 
-      {/* 标签 */}
-      {tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {tags.map(([t, n]) => (
-            <button
-              key={t}
-              className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                tag === t
-                  ? 'border-[var(--accent)] text-[var(--accent)]'
-                  : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-              onClick={() => set({ tag: tag === t ? null : t })}
-            >
-              {t} <span className="opacity-60">{n}</span>
+      {/* 第三层：主题，选了行业才出现 */}
+      {topicChips.length > 0 && (
+        <div className="no-scrollbar -mx-5 mt-2 flex gap-2 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
+          <button className={sub(!topic)} onClick={() => set({ topic: null })}>全部主题</button>
+          {topicChips.map((t) => (
+            <button key={t.key} className={sub(topic === t.key)} onClick={() => set({ topic: topic === t.key ? null : t.key })}>
+              {t.name}
             </button>
           ))}
         </div>
       )}
 
-      {/* 列表 */}
-      <p className="mt-8 text-xs text-[var(--muted)]">
-        {shown.length === ideas.length ? `${ideas.length} 条` : `${shown.length} / ${ideas.length} 条`}
-      </p>
+      {/* 计数 + 小开关。标签筛选只从详情页/文章页点进来，这里只显示可关掉的当前标签 */}
+      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--muted)]">
+        <span>{shown.length === ideas.length ? `${ideas.length} 条` : `${shown.length} / ${ideas.length} 条`}</span>
+        <span className="text-[var(--line)]">|</span>
+        <button className={small(onlyFree)} onClick={() => set({ free: onlyFree ? null : '1' })}>免费样稿</button>
+        <button className={small(onlyAudio)} onClick={() => set({ audio: onlyAudio ? null : '1' })}>有朗读</button>
+        {signedIn && (
+          <>
+            <button className={small(onlyLiked)} onClick={() => set({ liked: onlyLiked ? null : '1' })}>赞过</button>
+            <button className={small(onlySaved)} onClick={() => set({ saved: onlySaved ? null : '1' })}>收藏</button>
+          </>
+        )}
+        {tag && (
+          <button
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--accent)] px-2 py-0.5 text-[var(--accent)]"
+            onClick={() => set({ tag: null })}
+            aria-label={`取消标签 ${tag}`}
+          >
+            {tag} <span aria-hidden>×</span>
+          </button>
+        )}
+      </div>
+
+      {/* 列表：分隔线，不套盒子。每条三行：标题、一句摘要、一行元信息 */}
       {!shown.length && (
-        <p className="mt-6 text-[var(--muted)]">
+        <p className="mt-8 text-[var(--muted)]">
           {ideas.length ? '没有符合条件的，换个筛选试试。' : '选题还在整理中，过几天再来看看。'}
         </p>
       )}
-      <div className="mt-3 space-y-2.5">
+      <ul className="mt-2 divide-y divide-[var(--line)]">
         {shown.map((i) => {
           const canPlay = Boolean(audio[i.code]);
           return (
-            <div
-              key={i.code}
-              className="flex items-start gap-4 rounded-2xl bg-[var(--bg-raised)] p-5 transition-shadow hover:shadow-[0_8px_24px_-12px_rgba(18,24,21,0.18)]"
-            >
-              {/* 试听键 */}
-              {i.hasAudio ? (
-                canPlay ? (
+            <li key={i.code} className="flex items-start gap-3 py-4 sm:py-5">
+              <div className="min-w-0 flex-1">
+                <Link href={`/ideas/${i.slug}`} className="block">
+                  <h3 className="font-display text-[17px] font-semibold leading-snug hover:text-[var(--accent)] sm:text-lg">
+                    {i.title}
+                  </h3>
+                </Link>
+                {i.summary && (
+                  <p className="mt-1 line-clamp-1 text-sm leading-relaxed text-[var(--muted)] sm:line-clamp-2">
+                    {i.summary}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+                  {[
+                    i.industryName && <span key="ind">{i.industryName}</span>,
+                    i.topicName && <span key="top">{i.topicName}</span>,
+                    i.isFree && <span key="free" className="font-medium text-[var(--accent)]">免费样稿</span>,
+                    i.article && <span key="art">有文章</span>,
+                    i.publishedAt && <time key="at" dateTime={i.publishedAt}>{dateOf(i.publishedAt)}</time>,
+                  ]
+                    .filter(Boolean)
+                    .map((el, k) => (
+                      <span key={k} className="inline-flex items-center gap-x-2">
+                        {k > 0 && <span aria-hidden>·</span>}
+                        {el}
+                      </span>
+                    ))}
+                  <span className="ml-auto">
+                    <ReactionBar code={i.code} likes={likesOf(i)} saves={savesOf(i)} plain next="/ideas" mine={mine[i.code] ?? { liked: false, saved: false }} onChange={onReact} />
+                  </span>
+                </div>
+              </div>
+
+              {/* 试听键：有朗读才出现，贴着标题右侧 */}
+              {i.hasAudio &&
+                (canPlay ? (
                   <button
                     aria-label={playing === i.code ? '暂停' : '试听'}
                     onClick={() => toggle(i.code)}
-                    className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
                       playing === i.code
                         ? 'bg-[var(--accent)] text-white'
                         : 'bg-[var(--accent-tint)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white'
                     }`}
                   >
                     {playing === i.code ? (
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="1" width="3.5" height="12" rx="1" /><rect x="8.5" y="1" width="3.5" height="12" rx="1" /></svg>
+                      <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="1" width="3.5" height="12" rx="1" /><rect x="8.5" y="1" width="3.5" height="12" rx="1" /></svg>
                     ) : (
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5v11l9-5.5z" /></svg>
+                      <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5v11l9-5.5z" /></svg>
                     )}
                   </button>
                 ) : (
                   <Link
                     href={`/ideas/${i.slug}`}
                     title="登录后试听"
-                    className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--row-line)] text-[var(--muted)]"
+                    aria-label="登录后试听"
+                    className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--row-line)] text-[var(--muted)]"
                   >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="6" width="9" height="7" rx="1.5" /><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" /></svg>
+                    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="6" width="9" height="7" rx="1.5" /><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" /></svg>
                   </Link>
-                )
-              ) : (
-                <span className="mt-0.5 h-10 w-10 shrink-0" />
-              )}
-
-              <div className="min-w-0 flex-1">
-                <Link href={`/ideas/${i.slug}`} className="block">
-                  <h3 className="font-display text-lg font-semibold leading-snug hover:text-[var(--accent)]">
-                    {i.title}
-                  </h3>
-                </Link>
-                {i.summary && (
-                  <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-[var(--muted)]">
-                    {i.summary}
-                  </p>
-                )}
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--muted)]">
-                  <ReactionBar code={i.code} likes={likesOf(i)} saves={savesOf(i)} size="sm" next="/ideas" mine={mine[i.code] ?? { liked: false, saved: false }} onChange={onReact} />
-                  <span className="font-mono">{i.code}</span>
-                  {i.industryName && (
-                    <span className="rounded-full bg-[var(--accent-tint)] px-2 py-0.5 font-medium text-[var(--accent)]">
-                      {i.industryName}
-                    </span>
-                  )}
-                  {i.tags.map((t) => (
-                    <button
-                      key={t}
-                      className="rounded-full border border-[var(--line)] px-2 py-0.5 hover:text-[var(--ink)]"
-                      onClick={() => set({ tag: t })}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                  {i.article && (
-                    <span className="rounded-full bg-[var(--ink)] px-2 py-0.5 font-medium text-white">文章</span>
-                  )}
-                  {i.isFree && (
-                    <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 font-medium text-white">
-                      免费样稿
-                    </span>
-                  )}
-                  {i.publishedAt && (
-                    <time dateTime={i.publishedAt}>
-                      发布时间：
-                      {new Date(i.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </time>
-                  )}
-                </div>
-              </div>
-            </div>
+                ))}
+            </li>
           );
         })}
-      </div>
+      </ul>
 
-      <div className="mt-20 rounded-2xl bg-[var(--bg-raised)] p-8">
+      <div className="mt-16 rounded-2xl bg-[var(--bg-raised)] p-6 sm:p-8">
         <h2 className="font-display mb-3 text-xl font-semibold">想直接拿去拍？</h2>
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
           Fordexa 的客户打开 App 就能看到这些选题的完整口播稿，举起手机照着念，

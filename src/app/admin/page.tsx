@@ -22,6 +22,7 @@ type Client = {
 };
 
 type Industry = { key: string; name_zh: string; name_en: string };
+type Topic = { industry: string; key: string; name_zh: string };
 
 type Ref = { label: string; url: string };
 
@@ -29,6 +30,7 @@ type BankIdea = {
   id: string;
   code: string | null;
   industry: string | null;
+  topic: string | null;
   title: string;
   slug: string | null;
   summary: string | null;
@@ -149,6 +151,7 @@ export default function AdminPage() {
       'clients',
     );
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [bank, setBank] = useState<BankIdea[]>([]);
   /** 一行一条 —— 写选题是一口气列十几条，不该一条一条点保存 */
   const [bankText, setBankText] = useState('');
@@ -225,6 +228,7 @@ export default function AdminPage() {
     try {
       const d = await api('industries');
       setIndustries(d.industries ?? []);
+      setTopics(d.topics ?? []);
     } catch {
       /* 下拉框读不到就退回只读显示，不挡住别的操作 */
     }
@@ -922,6 +926,7 @@ export default function AdminPage() {
                       <BankEditor
                         idea={b}
                         orgs={orgs}
+                        topics={topics.filter((t) => t.industry === (b.industry ?? ''))}
                         draft={makeDraft}
                         onSave={(patch) => patchBank(b.id, patch)}
                         onAudio={(force) => makeAudio(b.id, force)}
@@ -1464,6 +1469,7 @@ export default function AdminPage() {
 function BankEditor({
   idea,
   orgs,
+  topics,
   draft,
   onSave,
   onAudio,
@@ -1473,6 +1479,8 @@ function BankEditor({
 }: {
   idea: BankIdea;
   orgs: Org[];
+  /** 这条所属行业的主题清单;行业没定或没配主题就是空 */
+  topics: Topic[];
   draft: (title: string, orgId: string, industry: string | null, note: string) => Promise<string | null>;
   onSave: (patch: Partial<BankIdea> & { refs?: Ref[] }) => Promise<boolean>;
   onAudio: (force: boolean) => void;
@@ -1483,6 +1491,7 @@ function BankEditor({
   const [summary, setSummary] = useState(idea.summary ?? '');
   const [script, setScript] = useState(idea.script ?? '');
   const [slug, setSlug] = useState(idea.slug ?? '');
+  const [topic, setTopic] = useState(idea.topic ?? '');
   const [tagsText, setTagsText] = useState((idea.tags ?? []).join(', '));
   const [sourceUrl, setSourceUrl] = useState(idea.source_url ?? '');
   const parsedTags = tagsText.split(/[,，、\s]+/).map((t) => t.trim()).filter(Boolean);
@@ -1532,7 +1541,22 @@ function BankEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
-            标签 · 公开 —— 逗号隔开，网站上按它筛选
+            主题 · 公开 —— 网站上行业下面按它筛选
+          </label>
+          {topics.length ? (
+            <select className={input} value={topic} onChange={(e) => setTopic(e.target.value)}>
+              <option value="">未定主题</option>
+              {topics.map((t) => (
+                <option key={t.key} value={t.key}>{t.name_zh}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-xs text-[var(--muted)]">这个行业还没配主题（topics 表）。</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-[var(--accent)]">
+            标签 · 公开 —— 逗号隔开，搜索用
           </label>
           <input
             className={input}
@@ -1651,7 +1675,7 @@ function BankEditor({
           className={btn}
           disabled={saving !== null}
           onClick={() =>
-            run('save', { summary, script, slug, refs: parsedRefs, tags: parsedTags, source_url: sourceUrl })
+            run('save', { summary, script, slug, refs: parsedRefs, tags: parsedTags, topic: topic || null, source_url: sourceUrl })
           }
         >
           {saving === 'save' ? '保存中…' : '保存'}
@@ -1666,6 +1690,7 @@ function BankEditor({
               slug,
               refs: parsedRefs,
               tags: parsedTags,
+              topic: topic || null,
               source_url: sourceUrl,
               is_published: !idea.is_published,
             })

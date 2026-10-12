@@ -97,6 +97,7 @@ export async function PATCH(request: NextRequest) {
   const patch: Record<string, unknown> = {};
   if (typeof body.title === 'string') patch.title = body.title.trim().slice(0, 200);
   if ('industry' in body) patch.industry = body.industry ? String(body.industry) : null;
+  if ('topic' in body) patch.topic = body.topic ? String(body.topic).slice(0, 40) : null;
   if (typeof body.sort_order === 'number') patch.sort_order = Math.round(body.sort_order);
   if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
   if (typeof body.summary === 'string') patch.summary = body.summary.trim().slice(0, 400) || null;
