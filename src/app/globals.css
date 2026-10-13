@@ -101,6 +101,10 @@ body {
 .article h4 { font-weight: 600; margin: 1.4rem 0 0.4rem; }
 .article p { margin: 0 0 1rem; }
 .article ul, .article ol { margin: 0 0 1.2rem 1.4rem; }
+/* Tailwind 的 preflight 把列表符号清掉了,正文里要加回来 */
+.article ul { list-style: disc; }
+.article ol { list-style: decimal; }
+.article li::marker { color: var(--muted); }
 .article li { margin: 0.3rem 0; }
 .article blockquote { margin: 1.2rem 0; padding: 0.8rem 1.1rem; background: var(--accent-tint); border-left: 3px solid var(--accent); border-radius: 0.6rem; color: var(--ink); font-size: 15px; }
 .article blockquote p { margin: 0; }
