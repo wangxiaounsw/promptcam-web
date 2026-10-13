@@ -48,7 +48,10 @@ export async function POST(request: NextRequest) {
     const token = await ai.authTokens.create({
       config: {
         uses: 1,
-        expireTime: new Date(Date.now() + 120_000).toISOString(),
+        // 会话总寿命。原来 2 分钟:预热池里放了一会儿的连接,录到一半就被
+        // Google 以「auth token has expired」(1011) 掐断(2026-10-14 实测)。
+        // 令牌只能用一次、30 秒内不开会话就作废,放长寿命不增加被盗用的面。
+        expireTime: new Date(Date.now() + 10 * 60_000).toISOString(),
         newSessionExpireTime: new Date(Date.now() + 30_000).toISOString(),
         liveConnectConstraints: {
           model: 'gemini-3.5-transcribe-live',
