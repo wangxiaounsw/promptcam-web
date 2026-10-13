@@ -87,9 +87,16 @@ export async function requireAdmin(
 export async function loadProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await admin()
     .from('profiles')
-    .select('is_fordexa_client, live_seconds_remaining')
+    .select('is_fordexa_client, live_seconds_remaining, organizations(is_active)')
     .eq('id', userId)
     .maybeSingle();
   if (error || !data) return null;
-  return data as Profile;
+  // 「客户」= 个人被标为客户,或者所属公司已开通(和网站 accessFor、App 的
+  // Entitlements 同一口径)。原来只认个人标记,公司员工的语音被按 5 分钟限额卡住。
+  const org = data.organizations as { is_active: boolean } | { is_active: boolean }[] | null;
+  const orgActive = Array.isArray(org) ? Boolean(org[0]?.is_active) : Boolean(org?.is_active);
+  return {
+    is_fordexa_client: Boolean(data.is_fordexa_client) || orgActive,
+    live_seconds_remaining: (data.live_seconds_remaining as number) ?? 0,
+  };
 }
