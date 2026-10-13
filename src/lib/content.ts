@@ -46,7 +46,7 @@ export type PublicIdea = {
   hasScript: boolean;
   /** 文章正文(Markdown),公开。有它的是「文章页」 */
   article: string | null;
-  /** 文章页下面挂的口播(不含正文和音频,各自在浏览器里按权限取) */
+  /** 文章页下面挂的口播。有权限时带正文和音频(App 靠这个);网页静态页无权限,浏览器再按权限各自取 */
   children?: ChildIdea[];
   /** 这条是某篇文章下面的口播:父页 slug,页面会跳过去 */
   parentSlug?: string;
@@ -65,6 +65,9 @@ export type ChildIdea = {
   tags: string[];
   industry: string | null;
   industryName: string | null;
+  /** 有权限(或免费)时才有 —— App 只认这里,网页静态页按无权限生成所以不会带 */
+  script?: string;
+  audioUrl?: string;
 };
 
 type Row = {
@@ -313,6 +316,8 @@ export async function getPublished(
       likes: k.like_count ?? 0, saves: k.save_count ?? 0,
       tags: Array.isArray(k.tags) ? k.tags : [], industry: k.industry,
       industryName: k.industry ? (names.get(k.industry) ?? k.industry) : null,
+      ...((allowed || k.is_free) && k.script ? { script: k.script } : {}),
+      ...((allowed || k.is_free) && audioReady(k) ? { audioUrl: k.audio_url! } : {}),
     }));
   }
   return pub;
