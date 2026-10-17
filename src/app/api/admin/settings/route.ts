@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { admin, configured, requireAdmin } from '@/lib/auth';
+import { configured, requireAdmin } from '@/lib/auth';
 import { DEFAULT_PROMPT } from '@/lib/draft-prompt';
+import { promptHistory, savePrompt } from '@/lib/prompts';
 
 export const runtime = 'nodejs';
 
 const no = (body: object, status: number) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-/** 可在后台直接改的设置。现在只有起草稿的提示词骨架。 */
+/**
+ * 后台「起草稿的提示词」= 提示词库里「写口播 · 通用」那条(不限公司、不限行业)。
+ * 2026-10-17 起不再存 app_settings —— 提示词只存提示词库一份,工作台也读这里。
+ */
 export async function GET(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
   if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
 
-  const { data } = await admin()
-    .from('app_settings')
-    .select('value')
-    .eq('key', 'draft_prompt')
-    .maybeSingle();
+  const [current] = (await promptHistory('write_script', null, 1)).filter((p) => p.status === 'active');
   return no(
     {
-      draftPrompt: data?.value ?? '',
+      draftPrompt: current?.body ?? '',
       // 前端要能显示「恢复默认」,所以把默认值也发过去
       defaultPrompt: DEFAULT_PROMPT,
     },
@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
+  const user = await requireAdmin(request);
+  if (!user) return no({ error: 'Not authorised.' }, 403);
 
   let body: { draftPrompt?: string };
   try {
@@ -37,10 +38,19 @@ export async function PUT(request: NextRequest) {
   } catch {
     return no({ error: 'Bad request.' }, 400);
   }
-  const value = (body.draftPrompt ?? '').trim().slice(0, 8000);
-  const { error } = await admin()
-    .from('app_settings')
-    .upsert({ key: 'draft_prompt', value }, { onConflict: 'key' });
-  if (error) return no({ error: '保存失败' }, 502);
+  const value = (body.draftPrompt ?? '').trim().slice(0, 8000) || DEFAULT_PROMPT;
+  try {
+    await savePrompt({
+      step: 'write_script',
+      orgId: null,
+      industry: null,
+      name: '写口播 · 通用',
+      body: value,
+      note: '后台「起草稿的提示词」修改',
+      userId: user.id,
+    });
+  } catch {
+    return no({ error: '保存失败' }, 502);
+  }
   return no({ ok: true }, 200);
 }

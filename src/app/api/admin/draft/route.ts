@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
 import { DEFAULT_PROMPT } from '@/lib/draft-prompt';
+import { chatDeepSeek, deepseekReady } from '@/lib/deepseek';
+import { scriptPrompt } from '@/lib/prompts';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,16 +17,10 @@ const no = (body: object, status: number) =>
  * 这是**草稿**，不是成品 —— 后台生成完直接填进编辑框，由 Shawn 改完再发。
  * 所以这里不做任何自动发布，也不写库。
  */
-/** 后台改过就用改过的,没改过用默认值。读失败也退回默认 —— 不能因此写不了稿。 */
-async function loadPrompt(): Promise<string> {
+/** 提示词库里挑:这家公司的 → 这个行业的 → 通用的。读失败退回默认 —— 不能因此写不了稿。 */
+async function loadPrompt(orgId: string | null, industry: string | null): Promise<string> {
   try {
-    const { data } = await admin()
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'draft_prompt')
-      .maybeSingle();
-    const v = (data?.value ?? '').trim();
-    return v || DEFAULT_PROMPT;
+    return (await scriptPrompt(orgId, industry)).prompt;
   } catch {
     return DEFAULT_PROMPT;
   }
@@ -36,8 +32,7 @@ export async function POST(request: NextRequest) {
 
   // 写稿用 DeepSeek:中文口播的语感比 Gemini 顺,而且便宜很多。
   // Gemini 继续只管语音转写那一摊。
-  const key = process.env.DEEPSEEK_API_KEY ?? '';
-  if (!key) return no({ error: '服务端没有配 DEEPSEEK_API_KEY。' }, 503);
+  if (!deepseekReady()) return no({ error: '服务端没有配 DEEPSEEK_API_KEY。' }, 503);
 
   let body: { title?: string; orgId?: string; industry?: string; note?: string };
   try {
@@ -88,36 +83,16 @@ export async function POST(request: NextRequest) {
     .join('\n\n---\n\n');
 
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: await loadPrompt() },
-          { role: 'user', content: prompt },
-        ],
-        // 口播要有人味,温度给高一点;但别太高,免得编出不存在的规定
-        temperature: 1.1,
-        max_tokens: 2000,
-      }),
-      signal: AbortSignal.timeout(55_000),
+    const text = await chatDeepSeek({
+      system: await loadPrompt(body.orgId ?? null, body.industry ?? null),
+      user: prompt,
+      // 口播要有人味,温度给高一点;但别太高,免得编出不存在的规定
+      temperature: 1.1,
+      maxTokens: 2000,
     });
-    if (!res.ok) {
-      console.error('draft failed', res.status, await res.text().catch(() => ''));
-      return no({ error: '生成失败，稍后再试。' }, 502);
-    }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = (data.choices?.[0]?.message?.content ?? '').trim();
-    if (!text) return no({ error: '没生成出内容，换个说法再试。' }, 502);
     return no({ draft: text }, 200);
   } catch (e) {
-    console.error('draft error', e);
-    return no({ error: '生成超时，稍后再试。' }, 504);
+    const message = (e as Error).message;
+    return no({ error: message }, message.includes('超时') ? 504 : 502);
   }
 }

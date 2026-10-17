@@ -7,3 +7,6 @@ next-env.d.ts
 
 # 本地环境变量
 .env*.local
+
+# 头脑风暴草图
+.superpowers/

@@ -12,7 +12,7 @@ export function scriptHash(script: string): string {
   return createHash('sha256').update(script.trim()).digest('hex').slice(0, 16);
 }
 
-export async function synthesize(text: string): Promise<Buffer> {
+export async function synthesize(text: string, voiceId: string = FISH_VOICE): Promise<Buffer> {
   const key = process.env.FISH_API_KEY ?? '';
   if (!key) throw new Error('FISH_API_KEY 没配');
   const res = await fetch('https://api.fish.audio/v1/tts', {
@@ -24,7 +24,7 @@ export async function synthesize(text: string): Promise<Buffer> {
     },
     body: JSON.stringify({
       text,
-      reference_id: FISH_VOICE,
+      reference_id: voiceId,
       format: 'mp3',
       mp3_bitrate: 128,
     }),
