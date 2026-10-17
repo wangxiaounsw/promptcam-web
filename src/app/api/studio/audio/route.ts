@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { admin } from '@/lib/auth';
-import { scriptHash, synthesize, ttsReady } from '@/lib/tts';
+import { synthesize, ttsReady } from '@/lib/tts';
 import { resolveVoice } from '@/lib/voice';
 import { existsPrivate, putPrivate, removePrivate, signedUrl } from '@/lib/studio/audio';
+import { ownsPreviewPath, previewHash } from '@/lib/studio/preview';
 import { json, ownScript, requireStudioUser } from '@/lib/studio/server';
 
 export const runtime = 'nodejs';
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id)
         .maybeSingle();
       if (!v) return json({ error: '找不到这一版' }, 404);
-      // 版本不会再改,文件名固定;换了声音想重听就 force
-      const path = `audio/${user.id}/v-${v.id}.mp3`;
+      // 版本不会再改:文件名 = 版本 + 声音,换了声音自然重念;force 强制重念
+      const path = `audio/${user.id}/v-${v.id}-${voiceId}.mp3`;
       if (force || !(await existsPrivate(path))) {
         await putPrivate(path, await synthesize(v.body, voiceId), 'audio/mpeg');
       }
@@ -46,9 +47,11 @@ export async function POST(request: NextRequest) {
 
     const script = await ownScript(user.id, String(body.scriptId ?? ''));
     if (!script) return json({ error: '找不到这条稿子' }, 404);
-    const hash = scriptHash(script.body);
-    if (!force && script.audio_path && script.audio_hash === hash) {
-      return json({ url: await signedUrl(script.audio_path), reused: true });
+    const hash = previewHash(script.body, voiceId);
+    // audio_path 本人能从 App 改:不是自己目录下的一律当没有,既不签名也不删
+    const ownPath = ownsPreviewPath(script.audio_path, user.id) ? script.audio_path : null;
+    if (!force && ownPath && script.audio_hash === hash) {
+      return json({ url: await signedUrl(ownPath), reused: true });
     }
     const path = `audio/${user.id}/${script.id}-${randomBytes(6).toString('hex')}.mp3`;
     await putPrivate(path, await synthesize(script.body, voiceId), 'audio/mpeg');
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
       .eq('id', script.id)
       .eq('user_id', user.id);
     if (error) return json({ error: '保存音频失败' }, 502);
-    if (script.audio_path) await removePrivate([script.audio_path]);
+    if (ownPath) await removePrivate([ownPath]);
     return json({ url: await signedUrl(path) });
   } catch (e) {
     console.error('studio audio', (e as Error).message);

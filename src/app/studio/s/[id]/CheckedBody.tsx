@@ -1,6 +1,6 @@
 'use client';
 
-import type { Checks } from '@/lib/studio/checks';
+import { needsReview, type Checks } from '@/lib/studio/checks';
 import { highlight } from '@/lib/studio/highlight';
 
 /**
@@ -31,6 +31,11 @@ export default function CheckedBody({
             <>
               <span className="font-medium text-[#7A5A00]">逐句复核没跑成，下面只核了数字</span>
               {onRetry && <button type="button" onClick={onRetry} className="h-11 font-bold text-[var(--accent)]">重试</button>}
+            </>
+          ) : needsReview(checks) ? (
+            <>
+              <span className="font-medium text-[#7A5A00]">逐句复核还没跑，下面只核了数字</span>
+              {onRetry && <button type="button" onClick={onRetry} className="h-11 font-bold text-[var(--accent)]">现在复核</button>}
             </>
           ) : (
             <span>{flagged ? '黄色 = 在文章里没找到依据，请自己确认。这是辅助提示，不保证找全。' : '核对过：数字和说法都在文章里找到了依据。'}</span>

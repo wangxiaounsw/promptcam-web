@@ -66,7 +66,13 @@ export async function POST(request: NextRequest) {
     claimsFailed: claims === null,
     truncated: source.truncated,
   };
-  const { error } = await db.from(target.table).update({ checks }).eq('id', target.id).eq('user_id', user.id);
+  // 只写回核对时的那份正文:核对期间正文被改了,结果就作废(不然旧结果会贴到新正文上)
+  const { error } = await db
+    .from(target.table)
+    .update({ checks })
+    .eq('id', target.id)
+    .eq('user_id', user.id)
+    .eq('body', target.text);
   if (error) return json({ error: '保存核对结果失败' }, 502);
   return json({ checks });
 }

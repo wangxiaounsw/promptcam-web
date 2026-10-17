@@ -19,3 +19,8 @@ export function pendingCount(checks: Checks | null | undefined): number {
   if (!checks) return 0;
   return checks.figures.length + (checks.claims?.length ?? 0);
 }
+
+/** 生成稿的逐句复核还没跑成（没跑、跑到一半关了页面、失败）——不能显示成「核对过」 */
+export function needsReview(checks: Checks | null | undefined): boolean {
+  return Boolean(checks) && checks!.claims === null;
+}

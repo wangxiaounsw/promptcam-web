@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { Version } from '../../api';
-import { PlayButton, Pill } from '../../ui';
+import { PlayButton, Pill, ReplayButton } from '../../ui';
 import { useIsDesktop } from '../../useScripts';
 import CheckedBody from './CheckedBody';
 import PromptPanel from './PromptPanel';
@@ -36,6 +36,9 @@ function VersionView({ v, checking, onRetry, inUse, onUse }: { v: Version; check
         >
           {inUse ? '正在用这版' : '用这版'}
         </button>
+      </div>
+      <div className="flex justify-center">
+        <ReplayButton versionId={v.id} />
       </div>
     </div>
   );
@@ -176,10 +179,15 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
                   </>
                 )}
               </div>
-              {!editing && canGenerate && (
-                <button type="button" disabled={ed.reviewing === 'body'} onClick={() => ed.review({ scriptId: id })} className="mt-1 h-11 w-full text-[15px] font-medium text-[var(--accent)] disabled:opacity-40">
-                  {ed.reviewing === 'body' ? '核对中…' : '重新核对正文'}
-                </button>
+              {!editing && (
+                <div className="mt-1 flex justify-center gap-4">
+                  <ReplayButton scriptId={id} />
+                  {canGenerate && (
+                    <button type="button" disabled={ed.reviewing === 'body'} onClick={() => ed.review({ scriptId: id })} className="h-11 px-2 text-[15px] font-medium text-[var(--accent)] disabled:opacity-40">
+                      {ed.reviewing === 'body' ? '核对中…' : '重新核对正文'}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (

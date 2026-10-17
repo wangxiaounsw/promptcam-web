@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import MobileMenu from './MobileMenu';
 import UserMenu from './UserMenu';
 
 const NAV = [
@@ -38,6 +39,8 @@ export function SiteHeader() {
         >
           申请开通
         </Link>
+        {/* 手机:导航、登录、管理员入口都收进三条杠 */}
+        <MobileMenu />
       </div>
     </header>
   );

@@ -2,35 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { browserSupabase } from '@/lib/browser-supabase';
+import { signOut, useAccount } from './useAccount';
 
 /**
- * 页头右侧:没登录是「登录」,登录了显示邮箱和「退出」。
- * 服务端渲染时不知道登录态,先渲染成空位,浏览器里再补 —— 避免闪一下。
+ * 页头右侧（电脑）：没登录是「登录」，登录了显示邮箱和「退出」；
+ * 管理员多两个入口：口播工作台、后台。手机上这些都收进 MobileMenu 的三条杠里。
  */
 export default function UserMenu() {
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null | undefined>(undefined);
+  const account = useAccount();
 
-  useEffect(() => {
-    let unsub = () => {};
-    browserSupabase().then((sb) => {
-      if (!sb) return setEmail(null);
-      sb.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? null));
-      const { data } = sb.auth.onAuthStateChange((_e, s) => setEmail(s?.user.email ?? null));
-      unsub = () => data.subscription.unsubscribe();
-    });
-    return () => unsub();
-  }, []);
+  if (account === undefined) return <span className="hidden w-12 sm:inline" />;
 
-  if (email === undefined) return <span className="w-12" />;
-
-  if (!email) {
+  if (!account.email) {
     return (
       <Link
         href={`/login?next=${encodeURIComponent(pathname || '/ideas')}`}
-        className="text-[15px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
+        className="hidden text-[15px] text-[var(--muted)] transition-colors hover:text-[var(--ink)] sm:inline"
       >
         登录
       </Link>
@@ -38,16 +26,15 @@ export default function UserMenu() {
   }
 
   return (
-    <span className="flex items-center gap-3 text-sm">
-      <span className="hidden max-w-[180px] truncate text-[var(--muted)] sm:inline">{email}</span>
-      <button
-        className="text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
-        onClick={async () => {
-          const sb = await browserSupabase();
-          await sb?.auth.signOut();
-          window.location.reload();
-        }}
-      >
+    <span className="hidden items-center gap-4 text-sm sm:flex">
+      {account.isAdmin && (
+        <>
+          <Link href="/studio" className="whitespace-nowrap font-medium text-[var(--accent)]">工作台</Link>
+          <Link href="/admin" className="whitespace-nowrap text-[var(--muted)] hover:text-[var(--ink)]">后台</Link>
+        </>
+      )}
+      <span className="max-w-[180px] truncate text-[var(--muted)]">{account.email}</span>
+      <button className="text-[var(--muted)] transition-colors hover:text-[var(--ink)]" onClick={signOut}>
         退出
       </button>
     </span>

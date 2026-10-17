@@ -77,6 +77,9 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               {t.label}
             </Link>
           ))}
+          <span className="flex-1" />
+          <Link href="/admin" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">后台</Link>
+          <Link href="/ideas" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">网站</Link>
         </nav>
       </header>
 

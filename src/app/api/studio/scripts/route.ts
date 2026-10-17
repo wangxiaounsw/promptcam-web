@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { admin } from '@/lib/auth';
-import { scriptHash } from '@/lib/tts';
+import { resolveVoice } from '@/lib/voice';
+import { ownsPreviewPath, previewHash } from '@/lib/studio/preview';
 import { researchMarks } from '@/lib/studio/markers';
 import { melbourneDay } from '@/lib/studio/week';
 import { SCRIPT_COLUMNS, json, ownScript, requireStudioUser, type ScriptRow } from '@/lib/studio/server';
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false });
   if (error) return json({ error: '读取失败' }, 502);
   const rows = (data ?? []) as ScriptRow[];
+  const { voiceId } = await resolveVoice(user.id);
 
   const { data: versions } = rows.length
     ? await db.from('script_versions').select('script_id').in('script_id', rows.map((r) => r.id))
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
     scripts: rows.map((r) => ({
       ...r,
       research: researchMarks(r.body).length,
-      hasAudio: Boolean(r.audio_path && r.audio_hash === scriptHash(r.body)),
+      hasAudio: ownsPreviewPath(r.audio_path, user.id) && r.audio_hash === previewHash(r.body, voiceId),
       versions: count.get(r.id) ?? 0,
     })),
   });

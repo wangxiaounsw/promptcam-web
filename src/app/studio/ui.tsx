@@ -59,6 +59,22 @@ export function Toaster() {
 
 // ---- 试听键 ----
 
+/** 强制重念：换了声音、或者觉得这次念得不好时用 */
+export function ReplayButton({ scriptId, versionId }: { scriptId?: string; versionId?: string }) {
+  const player = usePlayer();
+  const key = versionId ? `v:${versionId}` : `s:${scriptId}`;
+  return (
+    <button
+      type="button"
+      disabled={player.loading === key}
+      onClick={() => togglePlay({ scriptId, versionId, force: true }).catch((err) => showToast(errorText(err)))}
+      className="h-11 px-2 text-[15px] font-medium text-[var(--accent)] disabled:opacity-40"
+    >
+      {player.loading === key ? '重念中…' : '重念'}
+    </button>
+  );
+}
+
 export function PlayButton({
   scriptId,
   versionId,

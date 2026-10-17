@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { pendingCount } from '@/lib/studio/checks';
+import { needsReview, pendingCount } from '@/lib/studio/checks';
 import { dayLabel, daysBetween, groupWeek, shiftWeek, weekLabel, weekOf } from '@/lib/studio/week';
 import type { StudioScript } from './api';
 import { PlayButton, Pill } from './ui';
@@ -25,6 +25,7 @@ function Flags({ s }: { s: StudioScript }) {
   return (
     <>
       {pending > 0 && <Pill tone="yellow">待核 {pending}</Pill>}
+      {pending === 0 && needsReview(s.checks) && <Pill tone="yellow">未复核</Pill>}
       {s.research > 0 && <Pill tone="red">待补调研</Pill>}
     </>
   );

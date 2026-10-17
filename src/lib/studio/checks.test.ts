@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pendingCount } from './checks.ts';
+import { needsReview, pendingCount } from './checks.ts';
 
 test('pendingCount adds flagged figures and flagged sentences', () => {
   const checks = { figures: ['3 个月'], claims: [{ sentence: 'a', missing: 'b' }], claimsFailed: false, truncated: false };
@@ -10,4 +10,11 @@ test('pendingCount adds flagged figures and flagged sentences', () => {
 test('pendingCount is 0 when the AI review has not run and for missing checks', () => {
   assert.equal(pendingCount({ figures: [], claims: null, claimsFailed: true, truncated: false }), 0);
   assert.equal(pendingCount(null), 0);
+});
+
+test('needsReview: generated checks whose AI review never ran still need review', () => {
+  assert.equal(needsReview({ figures: [], claims: null, claimsFailed: false, truncated: false }), true);
+  assert.equal(needsReview({ figures: [], claims: null, claimsFailed: true, truncated: false }), true);
+  assert.equal(needsReview({ figures: [], claims: [], claimsFailed: false, truncated: false }), false);
+  assert.equal(needsReview(null), false);
 });
