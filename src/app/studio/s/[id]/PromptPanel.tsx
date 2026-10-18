@@ -124,7 +124,17 @@ export default function PromptPanel(props: Props) {
             <span className="text-[13px] font-medium text-[var(--accent)]">{open ? '收起' : '展开改'}</span>
           </span>
         </button>
-        {open && <Body {...props} />}
+        {/* 点了再生成就收起面板，让你看着稿子一个字一个字写出来 */}
+        {open && (
+          <Body
+            {...props}
+            onGenerate={(p) => {
+              setOpen(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              props.onGenerate(p);
+            }}
+          />
+        )}
       </section>
     </>
   );

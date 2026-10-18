@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { splitAppendix } from '@/lib/prompt-pick';
 import type { Version } from '../../api';
 import { PlayButton, Pill, ReplayButton } from '../../ui';
 import { useIsDesktop } from '../../useScripts';
@@ -27,7 +28,7 @@ function VersionView({ v, checking, onRetry, inUse, onUse }: { v: Version; check
         </details>
       )}
       <div className="mt-4 flex gap-2.5">
-        <PlayButton versionId={v.id} size="wide" />
+        <PlayButton versionId={v.id} chars={v.body.length} size="wide" />
         <button
           type="button"
           disabled={inUse}
@@ -40,6 +41,24 @@ function VersionView({ v, checking, onRetry, inUse, onUse }: { v: Version; check
       <div className="flex justify-center">
         <ReplayButton versionId={v.id} />
       </div>
+    </div>
+  );
+}
+
+/** 生成中：字边写边出来。出处表（--- 之后）先不显示，存好后在「每个数字的出处」里看 */
+function Drafting({ text }: { text: string }) {
+  const body = splitAppendix(text).body;
+  return (
+    <div className="rounded-2xl bg-[var(--bg-raised)] p-4" aria-live="polite">
+      <p className="mb-3 flex items-center gap-2 text-[13px] font-medium text-[var(--accent)]">
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+        {body ? '正在按你的风格写…' : '正在读文章…'}
+      </p>
+      <div className="whitespace-pre-wrap text-[17px] leading-[1.8]">
+        {body}
+        <span className="ml-0.5 inline-block h-5 w-0.5 animate-pulse bg-[var(--accent)] align-middle" />
+      </div>
+      <p className="mt-3 text-[13px] text-[var(--muted)]">写完会自动核对，并用你的声音先念好。</p>
     </div>
   );
 }
@@ -147,7 +166,9 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
         )}
 
         <div className="mt-3">
-          {tab === 'body' || !selected ? (
+          {ed.drafting !== null ? (
+            <Drafting text={ed.drafting} />
+          ) : tab === 'body' || !selected ? (
             <div className="rounded-2xl bg-[var(--bg-raised)] p-4">
               {editing ? (
                 <textarea
@@ -174,7 +195,7 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
                   </>
                 ) : (
                   <>
-                    <PlayButton scriptId={id} size="wide" />
+                    <PlayButton scriptId={id} chars={script.body.length} size="wide" />
                     <button type="button" onClick={() => setEditing(true)} className="h-14 flex-1 rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)]">改稿</button>
                   </>
                 )}

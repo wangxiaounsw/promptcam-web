@@ -69,6 +69,7 @@ type Org = {
   is_active: boolean;
   note: string | null;
   style_prompt: string | null;
+  voice_id: string | null;
   style_samples: string | null;
   email_domains: string[];
   members: number;
@@ -1125,6 +1126,15 @@ export default function AdminPage() {
                   e.target.value !== (o.note ?? '') &&
                   patchOrg(o.id, { note: e.target.value })
                 }
+              />
+              <input
+                className="mt-3 w-full rounded border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm"
+                placeholder="试听声音 ID（Fish 上训练好的，32 位）—— 这家公司的人试听默认用它，个人自己设了以个人为准"
+                defaultValue={o.voice_id ?? ''}
+                onBlur={(e) => {
+                  const v = e.target.value.trim().toLowerCase();
+                  if (v !== (o.voice_id ?? '')) patchOrg(o.id, { voice_id: v || null });
+                }}
               />
 
               <div className="mt-4 border-t border-white/8 pt-4">

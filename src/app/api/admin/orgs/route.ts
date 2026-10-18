@@ -83,6 +83,12 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.style_samples === 'string') {
     patch.style_samples = body.style_samples.trim().slice(0, 20000) || null;
   }
+  // 试听声音:Fish 的 32 位声音 ID;空 = 不设,公司成员回落到默认声音
+  if ('voice_id' in body) {
+    const v = body.voice_id ? String(body.voice_id).trim().toLowerCase() : null;
+    if (v && !/^[0-9a-f]{32}$/.test(v)) return no({ error: '声音 ID 是 32 位字母数字' }, 400);
+    patch.voice_id = v;
+  }
   if (Array.isArray(body.email_domains)) {
     // 公司邮箱域名:用这些邮箱登录的人自动归属这家。只收像域名的
     patch.email_domains = [...new Set(

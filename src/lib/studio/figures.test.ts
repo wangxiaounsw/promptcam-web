@@ -59,3 +59,7 @@ test('a Chinese comma after a number is not part of the number', () => {
 test('那一年 / 这一年 are not figures', () => {
   assert.deepEqual(unsupportedFigures('那一年印度第一次超过中国，这一年变化最大', ''), []);
 });
+
+test('spoken form 97 万 1 千 matches 97.1 万 / 971,000', () => {
+  assert.deepEqual(unsupportedFigures('印度出生的 97 万 1 千人，中国大陆 73 万 2 千', '印度 97.1 万、中国大陆 732,000'), []);
+});

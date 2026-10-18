@@ -125,7 +125,7 @@ export default function WeekView(props: Props) {
           <h2 className="mt-2 text-[22px] font-bold leading-snug">{next.title}</h2>
           <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-[var(--muted)]">{next.body}</p>
           <div className="mt-4 flex gap-2.5">
-            <PlayButton scriptId={next.id} size="wide" />
+            <PlayButton scriptId={next.id} chars={next.body.length} size="wide" />
             <button type="button" onClick={() => onPatch(next.id, { status: 'recorded' })} className="h-14 flex-1 rounded-2xl bg-[var(--accent)] text-[17px] font-bold text-white">
               ✓ 已录
             </button>

@@ -32,3 +32,8 @@ export async function removePrivate(paths: string[]): Promise<void> {
   if (!paths.length) return;
   await admin().storage.from(PRIVATE_BUCKET).remove(paths).catch(() => {});
 }
+
+export async function copyPrivate(from: string, to: string): Promise<boolean> {
+  const { error } = await admin().storage.from(PRIVATE_BUCKET).copy(from, to);
+  return !error;
+}

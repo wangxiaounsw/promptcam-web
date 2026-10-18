@@ -24,10 +24,11 @@ const CN_STOPWORDS = new Set(['千万', '万一', '一一', '十分', '万万', 
 // 千分位逗号只认后面跟三位数字的（中文逗号转成半角后也是 ,）；
 // 「50 万 9000」这种口语读法整体算一个数
 const ARABIC = new RegExp(
-  `(?:A\\$|\\$)?\\d(?:\\d|,(?=\\d{3}))*(?:\\.\\d+)?(?:\\s*[万千亿](?:\\s*\\d+(?![\\d.]))?)?(?:\\s*${UNIT_RE})?`,
+  `(?:A\\$|\\$)?\\d(?:\\d|,(?=\\d{3}))*(?:\\.\\d+)?(?:\\s*[万千亿](?:\\s*\\d+(?![\\d.])(?:\\s*[千百])?)?)?(?:\\s*${UNIT_RE})?`,
   'g',
 );
-const MIXED = new RegExp(`^(\\d+(?:\\.\\d+)?)([万亿])(\\d+)(${UNIT_RE})?$`);
+// 余数后面还可以带「千/百」：97 万 1 千 = 971000
+const MIXED = new RegExp(`^(\\d+(?:\\.\\d+)?)([万亿])(\\d+)([千百])?(${UNIT_RE})?$`);
 const PERCENT_CN = new RegExp(`百分之[${CN_CHARS}\\d.]+`, 'g');
 const CHINESE = new RegExp(`[${CN_CHARS}]+(?:\\s*${UNIT_RE})?`, 'g');
 
@@ -78,8 +79,9 @@ export function normalizeFigure(raw: string): string | null {
   const s = halfWidth(raw).replace(/\s+/g, '');
   const mixed = s.match(MIXED);
   if (mixed) {
-    const [, head, magnitude, rest, unit] = mixed;
-    const value = Number(head) * (magnitude === '万' ? 1e4 : 1e8) + Number(rest);
+    const [, head, magnitude, rest, small, unit] = mixed;
+    const restValue = Number(rest) * (small === '千' ? 1e3 : small === '百' ? 100 : 1);
+    const value = Number(head) * (magnitude === '万' ? 1e4 : 1e8) + restValue;
     return unit === '%' ? `pct:${value}` : unit && KIND_UNITS.includes(unit) ? `${value}:${unit}` : `n:${value}`;
   }
   if (s.startsWith('百分之')) {

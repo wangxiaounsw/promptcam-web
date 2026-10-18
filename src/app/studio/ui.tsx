@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { errorText } from './api';
-import { togglePlay, usePlayer } from './player';
+import { keyOf, togglePlay, usePlayer } from './player';
 
 /** App 的小标签：上下 4、左右 10、全圆角，13/500 */
 export function Pill({ tone = 'green', children }: { tone?: 'green' | 'yellow' | 'red' | 'gray'; children: ReactNode }) {
@@ -59,18 +59,34 @@ export function Toaster() {
 
 // ---- 试听键 ----
 
+/** 合成速度实测约每秒 35 字（750 字念 20 秒），用来给个预计时间 */
+const estimateSeconds = (chars?: number) => (chars ? Math.max(5, Math.round(chars / 35)) : null);
+
+/** 正在念的话，已经念了几秒（每秒刷新） */
+function useElapsed(key: string): number | null {
+  const player = usePlayer();
+  const started = player.loading.includes(key) ? player.startedAt[key] : undefined;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!started) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [started]);
+  return started ? Math.max(0, Math.round((now - started) / 1000)) : null;
+}
+
 /** 强制重念：换了声音、或者觉得这次念得不好时用 */
 export function ReplayButton({ scriptId, versionId }: { scriptId?: string; versionId?: string }) {
   const player = usePlayer();
-  const key = versionId ? `v:${versionId}` : `s:${scriptId}`;
+  const loading = player.loading.includes(keyOf({ scriptId, versionId }));
   return (
     <button
       type="button"
-      disabled={player.loading === key}
+      disabled={loading}
       onClick={() => togglePlay({ scriptId, versionId, force: true }).catch((err) => showToast(errorText(err)))}
       className="h-11 px-2 text-[15px] font-medium text-[var(--accent)] disabled:opacity-40"
     >
-      {player.loading === key ? '重念中…' : '重念'}
+      {loading ? '念着呢…' : '重念'}
     </button>
   );
 }
@@ -78,16 +94,21 @@ export function ReplayButton({ scriptId, versionId }: { scriptId?: string; versi
 export function PlayButton({
   scriptId,
   versionId,
+  chars,
   size = 'round',
 }: {
   scriptId?: string;
   versionId?: string;
+  /** 稿子字数，用来估计要念多久 */
+  chars?: number;
   size?: 'round' | 'wide';
 }) {
   const player = usePlayer();
-  const key = versionId ? `v:${versionId}` : `s:${scriptId}`;
+  const key = keyOf({ scriptId, versionId });
   const playing = player.key === key;
-  const loading = player.loading === key;
+  const loading = player.loading.includes(key);
+  const elapsed = useElapsed(key);
+  const estimate = estimateSeconds(chars);
   const click = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -101,10 +122,23 @@ export function PlayButton({
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
   );
   if (size === 'wide') {
+    // 念的时候按钮底下跑一条进度：按预计时间走到 90% 停住，念完才满
+    const progress = loading && estimate && elapsed !== null ? Math.min(0.9, elapsed / estimate) : 0;
     return (
-      <button type="button" onClick={click} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)]">
-        {glyph}
-        {loading ? '生成中…' : playing ? '停止' : '试听'}
+      <button type="button" onClick={click} className="relative flex h-14 flex-1 items-center justify-center gap-2 overflow-hidden rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)]">
+        {loading && <span className="absolute inset-y-0 left-0 bg-[var(--accent-tint)] transition-[width] duration-1000 ease-linear" style={{ width: `${progress * 100}%` }} />}
+        <span className="relative flex items-center gap-2">
+          {glyph}
+          {loading ? (
+            <span className="text-[15px]">
+              用你的声音念 {elapsed ?? 0}s{estimate ? ` / 约 ${estimate}s` : ''}
+            </span>
+          ) : playing ? (
+            '停止'
+          ) : (
+            '试听'
+          )}
+        </span>
       </button>
     );
   }
@@ -112,8 +146,8 @@ export function PlayButton({
     <button
       type="button"
       onClick={click}
-      aria-label={playing ? '停止试听' : '试听'}
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-tint)] text-[var(--accent)]"
+      aria-label={loading ? '正在念，好了就播' : playing ? '停止试听' : '试听'}
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-tint)] text-[var(--accent)]"
     >
       {glyph}
     </button>

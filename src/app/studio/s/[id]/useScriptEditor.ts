@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { Checks } from '@/lib/studio/checks';
-import { errorText, send, studioFetch, type StudioScript, type Version } from '../../api';
+import { readNdjson } from '@/lib/ndjson';
+import { errorText, send, studioFetch, studioToken, type StudioScript, type Version } from '../../api';
+import { forgetAudio, prepareAudio } from '../../player';
 import { showToast } from '../../ui';
 import type { ScriptPatch } from '../../useScripts';
+
+type StreamEvent = { t: 'delta'; text: string } | { t: 'done'; version: Version; cut: boolean } | { t: 'error'; error: string };
 
 export type PromptInfo = {
   prompt: string;
@@ -24,6 +28,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [prompt, setPrompt] = useState<PromptInfo | null>(null);
   const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
+  const [drafting, setDrafting] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -57,6 +62,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
         await studioFetch('/api/studio/scripts', send('PATCH', { id, ...change }));
         const bodyChanged = change.body !== undefined && change.body !== script.body;
         setScript({ ...script, ...change, ...(bodyChanged ? { checks: null, hasAudio: false } : {}) });
+        if (bodyChanged) forgetAudio({ scriptId: id });
         onChanged?.();
       } catch (e) {
         showToast(errorText(e));
@@ -81,22 +87,58 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
     }
   }, []);
 
-  /** 生成一版并返回它；随后自动核对 */
+  /**
+   * 生成一版：字边写边显示（drafting），存好后返回这一版，
+   * 并立刻在后台核对、用你的声音念好 —— 你读完稿子点试听时一般已经能直接播。
+   */
   const generate = useCallback(
     async (promptText?: string): Promise<Version | null> => {
       setBusy('generate');
+      setDrafting('');
       try {
-        const { version } = await studioFetch<{ version: Version }>(
-          '/api/studio/generate',
-          send('POST', { scriptId: id, ...(promptText ? { prompt: promptText } : {}) }),
-        );
-        setVersions((vs) => [...vs, version].sort((a, b) => a.n - b.n));
-        review({ versionId: version.id });
-        return version;
+        const token = await studioToken();
+        if (!token) throw new Error('请先登录');
+        const res = await fetch('/api/studio/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ scriptId: id, ...(promptText ? { prompt: promptText } : {}) }),
+        });
+        // 参数不对等早期错误还是普通 JSON
+        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? '生成失败');
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let text = '';
+        let version: Version | null = null;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const read = readNdjson(buffer + decoder.decode(value, { stream: true }));
+          buffer = read.rest;
+          for (const ev of read.events as StreamEvent[]) {
+            if (ev.t === 'delta') {
+              text += ev.text;
+              setDrafting(text);
+            } else if (ev.t === 'done') {
+              version = ev.version;
+              if (ev.cut) showToast('稿子太长，结尾可能被截断了，看一下最后一句');
+            } else if (ev.t === 'error') {
+              throw new Error(ev.error);
+            }
+          }
+        }
+        if (!version) throw new Error('生成中断了，再点一次');
+        const saved = version;
+        setVersions((vs) => [...vs, saved].sort((a, b) => a.n - b.n));
+        review({ versionId: saved.id });
+        prepareAudio({ versionId: saved.id });
+        return saved;
       } catch (e) {
         showToast(errorText(e));
         return null;
       } finally {
+        setDrafting(null);
         setBusy(null);
       }
     },
@@ -109,13 +151,16 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
       try {
         await studioFetch('/api/studio/versions', send('POST', { versionId: v.id }));
         setScript({ ...script, body: v.body, checks: v.checks, hasAudio: false });
+        // 这一版念好了的话，服务端已经把音频拿来当正文的试听；没念好就现在念
+        forgetAudio({ scriptId: id });
+        prepareAudio({ scriptId: id });
         onChanged?.();
         showToast(v.n === 0 ? '已换回 Fordexa 原版' : `正文已换成第 ${v.n} 版`);
       } catch (e) {
         showToast(errorText(e));
       }
     },
-    [script, onChanged],
+    [id, script, onChanged],
   );
 
   const savePrompt = useCallback(async (body: string, note: string) => {
@@ -128,5 +173,5 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
     }
   }, []);
 
-  return { script, missing, versions, prompt, busy, reviewing, save, generate, review, adoptVersion, savePrompt, reload: load };
+  return { script, missing, versions, prompt, busy, reviewing, drafting, save, generate, review, adoptVersion, savePrompt, reload: load };
 }
