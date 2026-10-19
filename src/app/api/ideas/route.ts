@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   // 权限和稿子并行取,互不依赖
   // 单篇连同挂在下面的口播一起给(文章页用);App 和网站同一套
   const access = await accessFor(request);
-  const idea = await getPublished(slug, access.allowed);
+  const idea = await getPublished(slug, access.allowed, access.viewer);
   if (!idea) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
   return NextResponse.json(
     {

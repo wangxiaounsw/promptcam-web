@@ -4,7 +4,7 @@ import { chatDeepSeek } from '@/lib/deepseek';
 import type { Checks } from '@/lib/studio/checks';
 import { CLAIM_REVIEW_PROMPT, parseClaimReview, type Claim } from '@/lib/studio/claims';
 import { unsupportedFigures } from '@/lib/studio/figures';
-import { json, ownScript, requireStudioUser, sourceForScript } from '@/lib/studio/server';
+import { json, requireStudioUser, scriptInScope, sourceForScript, versionInScope, type ScriptRow } from '@/lib/studio/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -25,25 +25,22 @@ export async function POST(request: NextRequest) {
   }
 
   const db = admin();
-  let target: { table: 'script_versions' | 'scripts'; id: string; text: string; scriptId: string };
+  let target: { table: 'script_versions' | 'scripts'; id: string; text: string };
+  let script: ScriptRow;
   if (body.versionId) {
-    const { data: v } = await db
-      .from('script_versions')
-      .select('id, script_id, kind, body')
-      .eq('id', String(body.versionId))
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (!v) return json({ error: '找不到这一版' }, 404);
-    if (v.kind === 'fordexa') return json({ error: 'Fordexa 原版不用核对' }, 400);
-    target = { table: 'script_versions', id: v.id, text: v.body, scriptId: v.script_id };
+    const found = await versionInScope(user.orgId, String(body.versionId));
+    if (!found) return json({ error: '找不到这一版' }, 404);
+    if (found.version.kind === 'fordexa') return json({ error: 'Fordexa 原版不用核对' }, 400);
+    target = { table: 'script_versions', id: found.version.id, text: found.version.body };
+    script = found.script;
   } else {
-    const s = await ownScript(user.id, String(body.scriptId ?? ''));
+    const s = await scriptInScope(user.orgId, String(body.scriptId ?? ''));
     if (!s) return json({ error: '找不到这条稿子' }, 404);
-    target = { table: 'scripts', id: s.id, text: s.body, scriptId: s.id };
+    target = { table: 'scripts', id: s.id, text: s.body };
+    script = s;
   }
 
-  const script = await ownScript(user.id, target.scriptId);
-  const source = script ? await sourceForScript(script) : null;
+  const source = await sourceForScript(script);
   if (!source) return json({ error: '这条没有文章可依据，没法核对' }, 400);
 
   let claims: Claim[] | null = null;
@@ -67,12 +64,8 @@ export async function POST(request: NextRequest) {
     truncated: source.truncated,
   };
   // 只写回核对时的那份正文:核对期间正文被改了,结果就作废(不然旧结果会贴到新正文上)
-  const { error } = await db
-    .from(target.table)
-    .update({ checks })
-    .eq('id', target.id)
-    .eq('user_id', user.id)
-    .eq('body', target.text);
+  // checks 不进修改记录,不用写 edited_by
+  const { error } = await db.from(target.table).update({ checks }).eq('id', target.id).eq('body', target.text);
   if (error) return json({ error: '保存核对结果失败' }, 502);
   return json({ checks });
 }

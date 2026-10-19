@@ -2,14 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
-import { StudioError, studioFetch, studioToken } from './api';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { StudioError, studioFetch, studioToken, type StudioMe } from './api';
+import Avatar from './Avatar';
+import FeedbackSheet from './FeedbackSheet';
+import { OrgSelect, ViewingBanner } from './OrgSwitcher';
+import { MeContext, type StudioMeContext } from './studio-me';
 import { Toaster } from './ui';
+import { readViewing, writeViewing } from './viewing';
 
 /**
  * 工作台外壳。沿用 App 的三个标签：口播库 / 灵感库 / 我的。
  * 手机：底部标签栏（同 App 的 NavigationBar）；电脑：顶部一行。
- * 先探一次接口确认有权限 —— 第一期只对管理员开放。
+ * 先问一次 /api/studio/me：能不能进、我是谁、正在看哪家公司。
+ * 管理员切换公司时整棵内容重挂载 —— 每页都按新公司重新取数据。
  */
 type Gate = 'checking' | 'open' | 'closed';
 
@@ -37,87 +43,134 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [gate, setGate] = useState<Gate>('checking');
 
+  const [me, setMe] = useState<StudioMe | null>(null);
+  const [feedback, setFeedback] = useState(false);
+
+  const loadMe = useCallback(async () => {
+    try {
+      const data = await studioFetch<StudioMe>('/api/studio/me');
+      // 存着的公司无效时服务端回落到自己的公司：把本地也改过来
+      if (data.orgs && data.viewing && readViewing() !== data.viewing.id) writeViewing(data.viewing.id);
+      setMe(data);
+      setGate('open');
+    } catch (e) {
+      if (e instanceof StudioError && e.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      else setGate('closed');
+    }
+  }, [pathname, router]);
+
   useEffect(() => {
-    let cancelled = false;
     (async () => {
       if (!(await studioToken())) {
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
-      try {
-        await studioFetch('/api/studio/voice');
-        if (!cancelled) setGate('open');
-      } catch (e) {
-        if (cancelled) return;
-        if (e instanceof StudioError && e.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-        else setGate('closed');
-      }
+      await loadMe();
     })();
-    return () => {
-      cancelled = true;
-    };
     // 只在进入工作台时查一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div className="min-h-dvh bg-[var(--bg)] text-[var(--ink)]">
-      <header className="sticky top-0 z-20 hidden border-b border-[var(--line)] bg-[var(--bg-raised)] md:block">
-        <nav className="mx-auto flex h-14 max-w-[1440px] items-center gap-2 px-6">
-          <span className="mr-6 font-semibold">口播工作台</span>
-          {TABS.map((t) => (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`flex h-10 items-center gap-2 rounded-xl px-4 text-[15px] ${
-                isActive(pathname, t.href) ? 'bg-[var(--accent-tint)] font-bold text-[var(--accent)]' : 'text-[var(--muted)]'
-              }`}
-            >
-              <Icon d={t.icon} />
-              {t.label}
-            </Link>
-          ))}
-          <span className="flex-1" />
-          <Link href="/admin" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">后台</Link>
-          <Link href="/ideas" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">网站</Link>
-        </nav>
-      </header>
+  const switchTo = useCallback(
+    (orgId: string) => {
+      writeViewing(orgId);
+      setMe(null);
+      setGate('checking');
+      router.push('/studio');
+      loadMe();
+    },
+    [loadMe, router],
+  );
 
-      <main className="mx-auto max-w-[1440px] px-5 pb-28 pt-4 md:px-6 md:pb-10">
-        {gate === 'checking' && <div className="mt-10 h-40 animate-pulse rounded-2xl bg-[var(--row-line)]" />}
-        {gate === 'closed' && (
-          <div className="mt-16 rounded-2xl bg-[var(--bg-raised)] p-6 text-center">
-            <p className="text-[17px] font-bold">工作台还没对你开放</p>
-            <p className="mt-2 text-[15px] text-[var(--muted)]">现在只有 Fordexa 管理员能用。</p>
+  const openFeedback = useCallback(() => setFeedback(true), []);
+  const ctx = useMemo<StudioMeContext | null>(
+    () => (me ? { ...me, switchTo, openFeedback } : null),
+    [me, switchTo, openFeedback],
+  );
+
+  return (
+    <MeContext.Provider value={ctx}>
+      <div className="min-h-dvh bg-[var(--bg)] text-[var(--ink)]">
+        <header className="sticky top-0 z-20 hidden border-b border-[var(--line)] bg-[var(--bg-raised)] md:block">
+          <nav className="mx-auto flex h-14 max-w-[1440px] items-center gap-2 px-6">
+            <span className="font-semibold">口播工作台</span>
+            <OrgSelect />
+            <span className="mr-4" />
+            {TABS.map((t) => (
+              <Link
+                key={t.href}
+                href={t.href}
+                className={`flex h-10 items-center gap-2 rounded-xl px-4 text-[15px] ${
+                  isActive(pathname, t.href) ? 'bg-[var(--accent-tint)] font-bold text-[var(--accent)]' : 'text-[var(--muted)]'
+                }`}
+              >
+                <Icon d={t.icon} />
+                {t.label}
+              </Link>
+            ))}
+            <span className="flex-1" />
+            {me?.me.isAdmin && <Link href="/admin" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">后台</Link>}
+            <Link href="/ideas" className="h-10 px-3 text-[15px] leading-10 text-[var(--muted)]">网站</Link>
+            {me && (
+              <Link href="/studio/me" aria-label="我的" className="ml-1">
+                <Avatar person={me.me} size={28} />
+              </Link>
+            )}
+          </nav>
+        </header>
+
+        {gate === 'open' && (
+          <div className="sticky top-0 z-10 md:top-14">
+            <ViewingBanner />
           </div>
         )}
-        {gate === 'open' && children}
-      </main>
 
-      <Toaster />
+        <main className="mx-auto max-w-[1440px] px-5 pb-28 pt-4 md:px-6 md:pb-10">
+          {gate === 'checking' && <div className="mt-10 h-40 animate-pulse rounded-2xl bg-[var(--row-line)]" />}
+          {gate === 'closed' && (
+            <div className="mt-16 rounded-2xl bg-[var(--bg-raised)] p-6 text-center">
+              <p className="text-[17px] font-bold">工作台还没对你开放</p>
+              <p className="mt-2 text-[15px] text-[var(--muted)]">你的账号还没加入已开通的公司。联系 Fordexa 开通后再来。</p>
+            </div>
+          )}
+          {gate === 'open' && <div key={me?.viewing?.id ?? 'none'}>{children}</div>}
+        </main>
 
-      <nav
-        aria-label="主导航"
-        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--line)] bg-[var(--bg-raised)] px-2 pt-1.5 md:hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 10px)' }}
-      >
-        {TABS.map((t) => {
-          const on = isActive(pathname, t.href);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={on ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 text-xs ${on ? 'font-bold text-[var(--accent)]' : 'font-medium text-[var(--muted)]'}`}
-            >
-              <span className={`flex h-7 w-14 items-center justify-center rounded-[14px] ${on ? 'bg-[var(--accent-tint)]' : ''}`}>
-                <Icon d={t.icon} />
-              </span>
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
+        <Toaster />
+        {gate === 'open' && !feedback && (
+          <button
+            type="button"
+            onClick={openFeedback}
+            className="fixed bottom-6 right-6 z-30 hidden h-11 items-center rounded-full bg-[var(--bg-raised)] px-4 text-[14px] font-medium text-[var(--muted)] shadow-[0_4px_14px_rgba(0,0,0,0.12)] hover:text-[var(--ink)] md:flex"
+          >
+            反馈问题
+          </button>
+        )}
+        <FeedbackSheet open={feedback} onClose={() => setFeedback(false)} />
+
+        <nav
+          aria-label="主导航"
+          className="fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--line)] bg-[var(--bg-raised)] px-2 pt-1.5 md:hidden"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 10px)' }}
+        >
+          {TABS.map((t) => {
+            const on = isActive(pathname, t.href);
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={on ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center gap-0.5 text-xs ${on ? 'font-bold text-[var(--accent)]' : 'font-medium text-[var(--muted)]'}`}
+              >
+                <span className={`flex h-7 w-14 items-center justify-center rounded-[14px] ${on ? 'bg-[var(--accent-tint)]' : ''}`}>
+                  <Icon d={t.icon} />
+                </span>
+                {t.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </MeContext.Provider>
   );
 }

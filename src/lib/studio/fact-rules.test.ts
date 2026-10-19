@@ -23,3 +23,9 @@ test('no article still produces title and original', () => {
   const { text } = buildSourceText({ title: '只有标题', original: '只有原稿', article: null, refs: [] });
   assert.ok(text.includes('只有标题') && text.includes('只有原稿'));
 });
+
+test('a claimed script leaves the fordexa original out of the material', () => {
+  const { text } = buildSourceText({ title: '标题', original: null, article: '文章内容', refs });
+  assert.ok(!text.includes('【Fordexa 原稿】'));
+  assert.ok(text.includes('【选题】') && text.includes('【文章】') && text.includes('【出处】'));
+});

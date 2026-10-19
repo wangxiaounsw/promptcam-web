@@ -1,7 +1,9 @@
 /**
- * 发信。只有两封:
+ * 发信:
  *   1. 客户提交灵感  → 发给 Fordexa(否则没人知道队列里来了新东西)
  *   2. Fordexa 下发稿子 → 发给客户
+ *   3. 申请开通 / 开通了
+ *   4. 工作台里有人反馈问题 → 发给 Fordexa,截图作附件
  *
  * 没配环境变量时整个发信静默跳过 —— 发信失败绝不能让「下发稿子」这件事失败。
  * 稿子已经进了客户的口播库,他打开 App 照样看得到,只是少一封提醒。
@@ -13,9 +15,10 @@ const KEY = process.env.RESEND_API_KEY ?? '';
 
 export const mailReady = Boolean(FROM && KEY);
 
-type Mail = { to: string; subject: string; html: string; replyTo?: string };
+export type Attachment = { filename: string; content: Buffer };
+type Mail = { to: string; subject: string; html: string; replyTo?: string; attachments?: Attachment[] };
 
-async function send({ to, subject, html, replyTo }: Mail): Promise<boolean> {
+async function send({ to, subject, html, replyTo, attachments }: Mail): Promise<boolean> {
   if (!mailReady || !to) return false;
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -30,6 +33,9 @@ async function send({ to, subject, html, replyTo }: Mail): Promise<boolean> {
         subject,
         html,
         ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(attachments?.length
+          ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) }
+          : {}),
       }),
     });
     if (!res.ok) {
@@ -156,6 +162,38 @@ ${
   <a href="https://app.fordexa.com/admin"
      style="display:inline-block;background:#0f7b45;color:#fff;text-decoration:none;
             padding:12px 22px;border-radius:10px;font-weight:600">去后台写稿</a>
+</p>`),
+  });
+}
+
+/** 工作台里有人反馈问题。reply_to 设成他的邮箱,直接回信就能问细节 */
+export function mailBugReport(opts: {
+  reporterName: string;
+  reporterEmail: string;
+  orgName: string | null;
+  pageUrl: string | null;
+  message: string;
+  attachments: Attachment[];
+}): Promise<boolean> {
+  if (!ADMIN) return Promise.resolve(false);
+  const n = opts.attachments.length;
+  return send({
+    to: ADMIN,
+    replyTo: opts.reporterEmail || undefined,
+    subject: `【反馈】${opts.reporterName}${opts.orgName ? ` · ${opts.orgName}` : ''}${n ? `（附 ${n} 张截图）` : ''}`,
+    attachments: opts.attachments,
+    html: shell(`
+<p style="margin:0 0 6px;font-size:13px;color:#0f7b45;font-weight:700">工作台反馈</p>
+<p style="margin:0 0 14px;font-size:13px;color:#55605a">
+  ${esc(opts.reporterName)}${opts.orgName ? ` · ${esc(opts.orgName)}` : ''} · ${esc(opts.reporterEmail || '未知账号')}
+  ${opts.pageUrl ? `<br>页面：<code>${esc(opts.pageUrl)}</code>` : ''}
+  ${n ? `<br>截图 ${n} 张，见附件` : ''}
+</p>
+<div style="margin:0 0 20px;padding:14px;border:1px solid #e8ecea;border-radius:10px;white-space:pre-wrap">${esc(opts.message)}</div>
+<p style="margin:0">
+  <a href="https://app.fordexa.com/admin"
+     style="display:inline-block;background:#0f7b45;color:#fff;text-decoration:none;
+            padding:12px 22px;border-radius:10px;font-weight:600">去后台处理</a>
 </p>`),
   });
 }

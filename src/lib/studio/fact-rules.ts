@@ -13,11 +13,13 @@ export const FACT_RULES = `以下规则优先于上面的一切要求，不可�
 export const SOURCE_LIMIT = 24000;
 
 export type SourceRef = { label: string; url: string };
-export type SourceInput = { title: string; original: string; article: string | null; refs: SourceRef[] };
+/** original 为 null：这份 Fordexa 稿被别家占了，AI 只看文章和出处，不照着原稿改 */
+export type SourceInput = { title: string; original: string | null; article: string | null; refs: SourceRef[] };
 
 export function buildSourceText(s: SourceInput): { text: string; truncated: boolean } {
   const refLines = s.refs.map((r) => `- ${r.label} ${r.url}`.trim()).join('\n');
-  const head = `【选题】\n${s.title}\n\n【Fordexa 原稿】\n${s.original}`;
+  const original = s.original === null ? '' : `\n\n【Fordexa 原稿】\n${s.original}`;
+  const head = `【选题】\n${s.title}${original}`;
   const tail = refLines ? `\n\n【出处】\n${refLines}` : '';
   const article = s.article?.trim() ?? '';
   if (!article) return { text: head + tail, truncated: false };

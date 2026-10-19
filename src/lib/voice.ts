@@ -1,11 +1,12 @@
 import { admin } from '@/lib/auth';
 import { FISH_VOICE } from '@/lib/tts';
+import type { StudioUser } from '@/lib/studio/server';
 
 export type VoiceSource = 'me' | 'org' | 'default';
 
 /**
  * 念稿子用谁的声音:个人设了用个人的 → 所属公司设了用公司的 → 默认声音。
- * 第一期只有个人这一层在用,公司那层是给第二期留的口子。
+ * 公司那层给「Shawn 替客户训练好的声音」用(后台合作公司里填)。
  */
 export async function resolveVoice(userId: string): Promise<{ voiceId: string; from: VoiceSource }> {
   const { data } = await admin()
@@ -19,4 +20,15 @@ export async function resolveVoice(userId: string): Promise<{ voiceId: string; f
   const orgVoice = Array.isArray(org) ? org[0]?.voice_id : org?.voice_id;
   if (orgVoice) return { voiceId: orgVoice, from: 'org' };
   return { voiceId: FISH_VOICE, from: 'default' };
+}
+
+/**
+ * 工作台念稿子用谁的声音。管理员切到别家公司时,念的是那家公司的声音(没设就默认),
+ * 不用管理员自己的 —— 做出来要像客户自己念的。其他情况同 resolveVoice。
+ */
+export async function resolveStudioVoice(user: StudioUser): Promise<{ voiceId: string; from: VoiceSource }> {
+  if (!(user.isAdmin && user.orgId && user.orgId !== user.ownOrgId)) return resolveVoice(user.id);
+  const { data } = await admin().from('organizations').select('voice_id').eq('id', user.orgId).maybeSingle();
+  const orgVoice = (data?.voice_id as string | null) ?? null;
+  return orgVoice ? { voiceId: orgVoice, from: 'org' } : { voiceId: FISH_VOICE, from: 'default' };
 }

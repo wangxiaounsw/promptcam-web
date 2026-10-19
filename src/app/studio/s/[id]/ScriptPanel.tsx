@@ -7,6 +7,7 @@ import type { Version } from '../../api';
 import { PlayButton, Pill, ReplayButton } from '../../ui';
 import { useIsDesktop } from '../../useScripts';
 import CheckedBody from './CheckedBody';
+import ChangeLog from './ChangeLog';
 import PromptPanel from './PromptPanel';
 import { useScriptEditor } from './useScriptEditor';
 import VersionTabs, { versionLabel, type Tab } from './VersionTabs';
@@ -231,6 +232,7 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
             </label>
           )}
         </div>
+        <ChangeLog key={id} scriptId={id} />
       </div>
       {promptPanel}
     </div>

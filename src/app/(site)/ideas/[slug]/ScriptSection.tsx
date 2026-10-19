@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
-import ScriptGate from './ScriptGate';
+import ScriptGate, { TakenNote } from './ScriptGate';
 import ScriptBody from './ScriptBody';
 import ReactionBar from '@/components/ReactionBar';
 
@@ -18,7 +18,7 @@ export default function ScriptSection({
   const [open, setOpen] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
-  const [state, setState] = useState<'loading' | 'open' | 'locked'>('loading');
+  const [state, setState] = useState<'loading' | 'open' | 'locked' | 'taken'>('loading');
   const player = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function ScriptSection({
         const body = await res.json();
         if (cancelled) return;
         if (body?.idea?.script) { setScript(body.idea.script); setAudioUrl(body.idea.audioUrl ?? null); setState('open'); }
-        else setState('locked');
+        else setState(body?.idea?.taken ? 'taken' : 'locked');
       } catch { if (!cancelled) setState('locked'); }
     })();
     return () => { cancelled = true; };
@@ -84,11 +84,14 @@ export default function ScriptSection({
             登录 / 申请开通
           </Link>
         )}
+        {state === 'taken' && <span className="text-sm text-[var(--muted)]">已被其他合作公司使用</span>}
       </div>
 
       {open && (
         state === 'open' && script ? (
           <ScriptBody script={script} code={code} />
+        ) : state === 'taken' ? (
+          <TakenNote />
         ) : (
           <div className="mt-2"><ScriptGate slug={slug} code={code} /></div>
         )

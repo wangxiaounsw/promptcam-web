@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache';
 import type { NextRequest } from 'next/server';
 
 import { admin, configured, requestUser } from '@/lib/auth';
+import { fordexaVisible } from '@/lib/studio/scope';
 import { scriptHash } from '@/lib/tts';
 
 /**
@@ -42,6 +43,8 @@ export type PublicIdea = {
   script?: string;
   /** 朗读音频,和 script 同一套权限;稿子改过还没重念时不给 */
   audioUrl?: string;
+  /** 这份 Fordexa 稿已被别的合作公司用了:不给 script / audioUrl,页面照这个说明原因 */
+  taken?: boolean;
   /** 这条有没有口播稿(没权限的人也该知道「有正文可看」) */
   hasScript: boolean;
   /** 文章正文(Markdown),公开。有它的是「文章页」 */
@@ -68,7 +71,27 @@ export type ChildIdea = {
   /** 有权限(或免费)时才有 —— App 只认这里,网页静态页按无权限生成所以不会带 */
   script?: string;
   audioUrl?: string;
+  taken?: boolean;
 };
+
+/** 看稿子的人是谁:决定被占用的 Fordexa 稿给不给看。没登录 = ANON */
+export type Viewer = { orgId: string | null; isAdmin: boolean };
+export const ANON: Viewer = { orgId: null, isAdmin: false };
+
+/**
+ * Fordexa 稿全站只给一家用(fordexa_claims)。返回这些编号里对这个人藏起来的那些。
+ * 后台、网站、App 读的都是这里,规则在 fordexaVisible。
+ */
+async function hiddenCodes(codes: (string | null)[], viewer: Viewer): Promise<Set<string>> {
+  const list = codes.filter((c): c is string => Boolean(c));
+  if (!list.length) return new Set();
+  const { data } = await admin().from('fordexa_claims').select('code, org_id').in('code', list);
+  return new Set(
+    (data ?? [])
+      .filter((c) => !fordexaVisible({ claimOrgId: c.org_id as string, viewerOrgId: viewer.orgId, isAdmin: viewer.isAdmin }))
+      .map((c) => c.code as string),
+  );
+}
 
 type Row = {
   code: string | null;
@@ -104,8 +127,15 @@ function audioReady(row: Row): boolean {
   return Boolean(row.script && row.audio_url && row.audio_script_hash === scriptHash(row.script));
 }
 
-function toPublic(row: Row, names: Map<string, string>, allowed: boolean, topics: Map<string, string> = new Map()): PublicIdea {
+function toPublic(
+  row: Row,
+  names: Map<string, string>,
+  allowed: boolean,
+  topics: Map<string, string> = new Map(),
+  taken = false,
+): PublicIdea {
   const isFree = Boolean(row.is_free);
+  const show = (allowed || isFree) && !taken;
   return {
     tags: Array.isArray(row.tags) ? row.tags : [],
     article: row.article ?? null,
@@ -125,8 +155,9 @@ function toPublic(row: Row, names: Map<string, string>, allowed: boolean, topics
     publishedAt: row.published_at,
     isFree,
     hasScript: Boolean(row.script),
-    ...((allowed || isFree) && row.script ? { script: row.script } : {}),
-    ...((allowed || isFree) && audioReady(row) ? { audioUrl: row.audio_url! } : {}),
+    ...(taken ? { taken: true } : {}),
+    ...(show && row.script ? { script: row.script } : {}),
+    ...(show && audioReady(row) ? { audioUrl: row.audio_url! } : {}),
   };
 }
 
@@ -171,6 +202,8 @@ export type Access = {
   user: { id: string; email: string } | null;
   allowed: boolean;
   pending: boolean;
+  /** 被占用的 Fordexa 稿给不给看要用 */
+  viewer: Viewer;
 };
 
 /**
@@ -195,7 +228,7 @@ async function claimOrgByDomain(userId: string, email: string): Promise<string |
 }
 
 export async function accessFor(request: NextRequest): Promise<Access> {
-  const none: Access = { user: null, allowed: false, pending: false };
+  const none: Access = { user: null, allowed: false, pending: false, viewer: ANON };
   if (!configured) return none;
   const user = await requestUser(request);
   if (!user) return none;
@@ -206,7 +239,7 @@ export async function accessFor(request: NextRequest): Promise<Access> {
   const [{ data: profile }, { data: req }] = await Promise.all([
     db
       .from('profiles')
-      .select('is_fordexa_client, org_id, organizations(is_active)')
+      .select('is_fordexa_client, is_admin, org_id, organizations(is_active)')
       .eq('id', user.id)
       .maybeSingle(),
     db
@@ -217,11 +250,12 @@ export async function accessFor(request: NextRequest): Promise<Access> {
       .maybeSingle(),
   ]);
   const pending = Boolean(req);
-  if (profile?.is_fordexa_client) return { user, allowed: true, pending };
+  const viewer: Viewer = { orgId: (profile?.org_id as string | null) ?? null, isAdmin: Boolean(profile?.is_admin) };
+  if (profile?.is_fordexa_client) return { user, allowed: true, pending, viewer };
 
   const org = profile?.organizations as { is_active: boolean } | { is_active: boolean }[] | null;
   const active = Array.isArray(org) ? org[0]?.is_active : org?.is_active;
-  if (profile?.org_id) return { user, allowed: Boolean(active), pending };
+  if (profile?.org_id) return { user, allowed: Boolean(active), pending, viewer };
 
   // 没挂公司:按邮箱域名试着挂一次(只有第一次会多这一个来回)
   if (user.email) {
@@ -232,10 +266,10 @@ export async function accessFor(request: NextRequest): Promise<Access> {
         .select('is_active')
         .eq('id', orgId)
         .maybeSingle();
-      return { user, allowed: Boolean(o?.is_active), pending };
+      return { user, allowed: Boolean(o?.is_active), pending, viewer: { ...viewer, orgId } };
     }
   }
-  return { user, allowed: false, pending };
+  return { user, allowed: false, pending, viewer };
 }
 
 /** 当前访客能不能看正文。 */
@@ -284,18 +318,23 @@ export async function fetchPublishedRow(slug: string): Promise<Row | null> {
   return (data as Row | null) ?? null;
 }
 
-export async function rowToPublic(row: Row, allowed: boolean): Promise<PublicIdea> {
-  return toPublic(row, await industryNames(), allowed);
+export async function rowToPublic(row: Row, allowed: boolean, viewer: Viewer = ANON): Promise<PublicIdea> {
+  const [names, hidden] = await Promise.all([industryNames(), hiddenCodes([row.code], viewer)]);
+  return toPublic(row, names, allowed, new Map(), hidden.has(row.code ?? ''));
 }
 
-/** 单篇。allowed 决定正文给不给;免费样稿不看 allowed。 */
+/**
+ * 单篇。allowed 决定正文给不给;免费样稿不看 allowed。
+ * 被别家占用的 Fordexa 稿谁都不给(占着的那家和管理员除外),带 taken 让页面说明原因。
+ */
 export async function getPublished(
   slug: string,
   allowed: boolean,
+  viewer: Viewer = ANON,
 ): Promise<PublicIdea | null> {
   const [row, names] = await Promise.all([fetchPublishedRow(slug), industryNames()]);
   if (!row) return null;
-  const pub = toPublic(row, names, allowed);
+  const pub = toPublic(row, names, allowed, new Map(), (await hiddenCodes([row.code], viewer)).has(row.code ?? ''));
   if (row.parent_id) {
     // 挂在文章下面的口播:页面整体在父页,这里只告诉调用方该跳哪
     const { data: parent } = await admin().from('idea_bank').select('slug, code').eq('id', row.parent_id).maybeSingle();
@@ -310,14 +349,16 @@ export async function getPublished(
       .eq('is_published', true)
       .eq('is_active', true)
       .order('code');
+    const hidden = await hiddenCodes(((kids ?? []) as Row[]).map((k) => k.code), viewer);
     pub.children = ((kids ?? []) as Row[]).map((k) => ({
       code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
       hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
       likes: k.like_count ?? 0, saves: k.save_count ?? 0,
       tags: Array.isArray(k.tags) ? k.tags : [], industry: k.industry,
       industryName: k.industry ? (names.get(k.industry) ?? k.industry) : null,
-      ...((allowed || k.is_free) && k.script ? { script: k.script } : {}),
-      ...((allowed || k.is_free) && audioReady(k) ? { audioUrl: k.audio_url! } : {}),
+      ...(hidden.has(k.code ?? '') ? { taken: true } : {}),
+      ...((allowed || k.is_free) && !hidden.has(k.code ?? '') && k.script ? { script: k.script } : {}),
+      ...((allowed || k.is_free) && !hidden.has(k.code ?? '') && audioReady(k) ? { audioUrl: k.audio_url! } : {}),
     }));
   }
   return pub;
@@ -340,7 +381,7 @@ export function revalidateIdea(slug?: string | null) {
  */
 export async function audioMapFor(request: NextRequest): Promise<Record<string, string>> {
   if (!configured) return {};
-  const [{ allowed }, { data }] = await Promise.all([
+  const [{ allowed, viewer }, { data }] = await Promise.all([
     accessFor(request),
     admin()
       .from('idea_bank')
@@ -348,9 +389,11 @@ export async function audioMapFor(request: NextRequest): Promise<Record<string, 
       .eq('is_published', true)
       .eq('is_active', true),
   ]);
+  const rows = (data ?? []) as Row[];
+  const hidden = await hiddenCodes(rows.map((r) => r.code), viewer);
   const out: Record<string, string> = {};
-  for (const r of (data ?? []) as Row[]) {
-    if ((allowed || r.is_free) && audioReady(r) && r.code) out[r.code] = r.audio_url!;
+  for (const r of rows) {
+    if ((allowed || r.is_free) && audioReady(r) && r.code && !hidden.has(r.code)) out[r.code] = r.audio_url!;
   }
   return out;
 }

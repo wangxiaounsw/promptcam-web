@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { needsReview, pendingCount } from '@/lib/studio/checks';
 import { dayLabel, daysBetween, groupWeek, shiftWeek, weekLabel, weekOf } from '@/lib/studio/week';
 import type { StudioScript } from './api';
+import { Byline } from './Avatar';
 import { PlayButton, Pill } from './ui';
 import type { ScriptPatch } from './useScripts';
 
@@ -59,7 +60,10 @@ function Row({ s, props, extra }: { s: StudioScript; props: Props; extra?: React
       } ${done ? 'opacity-50' : ''}`}
     >
       <OpenLink id={s.id} onOpen={props.onOpen} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 py-1.5 pl-4">
-        <span className={`min-w-0 flex-1 truncate text-base font-medium ${done ? 'line-through' : ''}`}>{s.title}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={`truncate text-base font-medium ${done ? 'line-through' : ''}`}>{s.title}</span>
+          <Byline person={s.createdBy} />
+        </span>
         <Flags s={s} />
       </OpenLink>
       {extra}
@@ -123,6 +127,7 @@ export default function WeekView(props: Props) {
             <span className="flex gap-1.5"><Flags s={next} /></span>
           </div>
           <h2 className="mt-2 text-[22px] font-bold leading-snug">{next.title}</h2>
+          <div className="mt-1"><Byline person={next.createdBy} /></div>
           <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-[var(--muted)]">{next.body}</p>
           <div className="mt-4 flex gap-2.5">
             <PlayButton scriptId={next.id} chars={next.body.length} size="wide" />

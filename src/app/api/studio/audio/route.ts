@@ -2,10 +2,10 @@ import { randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { admin } from '@/lib/auth';
 import { synthesize, ttsReady } from '@/lib/tts';
-import { resolveVoice } from '@/lib/voice';
+import { resolveStudioVoice } from '@/lib/voice';
 import { existsPrivate, putPrivate, removePrivate, signedUrl } from '@/lib/studio/audio';
-import { ownsPreviewPath, previewHash } from '@/lib/studio/preview';
-import { json, ownScript, requireStudioUser } from '@/lib/studio/server';
+import { orgAudioDir, previewHash, previewPathAllowed } from '@/lib/studio/preview';
+import { json, requireStudioUser, scriptInScope, versionInScope } from '@/lib/studio/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -26,40 +26,38 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Bad request.' }, 400);
   }
   const force = body.force === true;
-  const { voiceId } = await resolveVoice(user.id);
+  const { voiceId } = await resolveStudioVoice(user);
 
   try {
     if (body.versionId) {
-      const { data: v } = await admin()
-        .from('script_versions')
-        .select('id, body')
-        .eq('id', String(body.versionId))
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (!v) return json({ error: '找不到这一版' }, 404);
-      // 版本不会再改:文件名 = 版本 + 声音,换了声音自然重念;force 强制重念
-      const path = `audio/${user.id}/v-${v.id}-${voiceId}.mp3`;
+      const found = await versionInScope(user.orgId, String(body.versionId));
+      if (!found) return json({ error: '找不到这一版' }, 404);
+      const v = found.version;
+      // 版本不会再改:文件名 = 版本 + 声音,换了声音自然重念;force 强制重念。同公司的人共用一份
+      const path = `${orgAudioDir(found.script.org_id!)}/v-${v.id}-${voiceId}.mp3`;
       if (force || !(await existsPrivate(path))) {
         await putPrivate(path, await synthesize(v.body, voiceId), 'audio/mpeg');
       }
       return json({ url: await signedUrl(path) });
     }
 
-    const script = await ownScript(user.id, String(body.scriptId ?? ''));
+    const script = await scriptInScope(user.orgId, String(body.scriptId ?? ''));
     if (!script) return json({ error: '找不到这条稿子' }, 404);
     const hash = previewHash(script.body, voiceId);
-    // audio_path 本人能从 App 改:不是自己目录下的一律当没有,既不签名也不删
-    const ownPath = ownsPreviewPath(script.audio_path, user.id) ? script.audio_path : null;
+    // audio_path 能从 App 改:不是这家公司(或主人旧目录)下的一律当没有,既不签名也不删
+    const ownPath = previewPathAllowed(script.audio_path, { orgId: script.org_id, ownerId: script.user_id })
+      ? script.audio_path
+      : null;
     if (!force && ownPath && script.audio_hash === hash) {
       return json({ url: await signedUrl(ownPath), reused: true });
     }
-    const path = `audio/${user.id}/${script.id}-${randomBytes(6).toString('hex')}.mp3`;
+    const path = `${orgAudioDir(script.org_id!)}/${script.id}-${randomBytes(6).toString('hex')}.mp3`;
     await putPrivate(path, await synthesize(script.body, voiceId), 'audio/mpeg');
     const { error } = await admin()
       .from('scripts')
-      .update({ audio_path: path, audio_hash: hash, audio_at: new Date().toISOString() })
+      .update({ audio_path: path, audio_hash: hash, audio_at: new Date().toISOString(), edited_by: user.id })
       .eq('id', script.id)
-      .eq('user_id', user.id);
+      .eq('org_id', script.org_id);
     if (error) return json({ error: '保存音频失败' }, 502);
     if (ownPath) await removePrivate([ownPath]);
     return json({ url: await signedUrl(path) });

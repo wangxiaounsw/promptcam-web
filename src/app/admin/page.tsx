@@ -2,6 +2,9 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { useCallback, useEffect, useState, useRef } from 'react';
+import Avatar from '../studio/Avatar';
+import ClaimsSection from './ClaimsSection';
+import FeedbackSection from './FeedbackSection';
 
 /** 浏览器端只拿 publishable key 做登录；所有数据操作都走 /api/admin/*，
  *  由服务端用 service_role 执行并校验 is_admin。
@@ -11,6 +14,7 @@ type Client = {
   id: string;
   email: string;
   display_name: string | null;
+  avatar_url: string | null;
   industry: string | null;
   is_fordexa_client: boolean;
   is_admin: boolean;
@@ -149,7 +153,7 @@ export default function AdminPage() {
 
   // ── 视图 / 选题库 / 队列 ──
   const [view, setView] =
-    useState<'clients' | 'bank' | 'queue' | 'orgs' | 'applies' | 'prompt'>(
+    useState<'clients' | 'bank' | 'queue' | 'orgs' | 'applies' | 'prompt' | 'claims' | 'feedback'>(
       'clients',
     );
   const [industries, setIndustries] = useState<Industry[]>([]);
@@ -754,6 +758,8 @@ export default function AdminPage() {
           ['orgs', `公司 ${orgs.length || ''}`],
           ['applies', `申请 ${pendingApplies || ''}`],
           ['prompt', '提示词'],
+          ['claims', '占用'],
+          ['feedback', '反馈'],
         ] as const).map(([k, label]) => (
           <button
             key={k}
@@ -1044,6 +1050,9 @@ export default function AdminPage() {
           ))}
         </section>
       )}
+
+      {view === 'claims' && token && <ClaimsSection token={token} />}
+      {view === 'feedback' && token && <FeedbackSection token={token} />}
 
       {view === 'orgs' && (
         <section className="space-y-4">
@@ -1336,6 +1345,7 @@ export default function AdminPage() {
               }}
             >
               <div className="flex items-center gap-2">
+                <Avatar person={{ id: c.id, name: c.display_name || c.email || '?', avatarUrl: c.avatar_url, isAdmin: c.is_admin }} size={28} />
                 <span className="truncate font-medium">{c.email || c.id.slice(0, 8)}</span>
                 {c.is_admin && (
                   <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]">ADMIN</span>

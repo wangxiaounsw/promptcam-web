@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Avatar from '@/app/studio/Avatar';
 import { signOut, useAccount } from './useAccount';
 
 /**
  * 手机页头右上角的三条杠。390 宽下导航和登录放不下，收进这里；
- * 管理员多两个入口：口播工作台、后台。
+ * 能进工作台的人多一个「口播工作台」，管理员再多一个「后台」。
  */
 const NAV = [
   { href: '/how', label: '怎么运作' },
@@ -45,10 +46,10 @@ export default function MobileMenu() {
         <>
           <div className="fixed inset-0 top-14 z-30 bg-[#121815]/40 sm:hidden" onClick={() => setOpen(false)} />
           <nav className="fixed inset-x-0 top-14 z-40 border-b sm:hidden border-[var(--line)] bg-[var(--bg-raised)] shadow-lg">
-            {account?.isAdmin && (
+            {account?.canStudio && (
               <div className="border-b-8 border-[var(--bg)]">
                 <Link href="/studio" className={`${row} font-bold text-[var(--accent)]`}>口播工作台</Link>
-                <Link href="/admin" className={`${row} font-medium`}>后台</Link>
+                {account.isAdmin && <Link href="/admin" className={`${row} font-medium`}>后台</Link>}
               </div>
             )}
             {NAV.map((n) => (
@@ -56,7 +57,10 @@ export default function MobileMenu() {
             ))}
             {account?.email ? (
               <div className="flex h-14 items-center justify-between border-t-8 border-[var(--bg)] px-5 text-[15px]">
-                <span className="min-w-0 truncate text-[var(--muted)]">{account.email}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <Avatar person={{ id: '', name: account.name ?? account.email, avatarUrl: account.avatarUrl, isAdmin: account.isAdmin }} size={28} />
+                  <span className="min-w-0 truncate text-[var(--muted)]">{account.email}</span>
+                </span>
                 <button type="button" onClick={signOut} className="h-11 shrink-0 pl-4 font-medium text-[var(--muted)]">退出</button>
               </div>
             ) : (

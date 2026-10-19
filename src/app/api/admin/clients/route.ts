@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, missingEnv, requireAdmin } from '@/lib/auth';
+import { avatarUrl } from '@/lib/avatar';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
     .map((p) => ({
       ...p,
       email: emailOf.get(p.id) ?? '',
+      avatar_url: avatarUrl((p.avatar_path as string | null) ?? null),
       scripts_total: stats.get(p.id)?.total ?? 0,
       scripts_recorded: stats.get(p.id)?.recorded ?? 0,
     }))

@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 /** 下发一条或多条稿子。source 固定 fordexa —— 这个端点就是用来下发的。 */
 export async function POST(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
+  const me = await requireAdmin(request);
+  if (!me) return no({ error: 'Not authorised.' }, 403);
 
   let body: { userId?: string; items?: { title?: string; body?: string }[] };
   try {
@@ -45,7 +46,9 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin()
     .from('scripts')
-    .insert(items.map((x, i) => ({ ...x, user_id: userId, source: 'fordexa', sort_order: i })));
+    .insert(
+      items.map((x, i) => ({ ...x, user_id: userId, source: 'fordexa', sort_order: i, created_by: me.id, edited_by: me.id })),
+    );
   if (error) return no({ error: 'Insert failed.' }, 502);
   return no({ ok: true, inserted: items.length }, 200);
 }
@@ -53,7 +56,8 @@ export async function POST(request: NextRequest) {
 /** 改一条（标题/正文/状态/排序）。 */
 export async function PATCH(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
+  const me = await requireAdmin(request);
+  if (!me) return no({ error: 'Not authorised.' }, 403);
 
   let body: Record<string, unknown>;
   try {
@@ -73,17 +77,21 @@ export async function PATCH(request: NextRequest) {
   }
   if (!Object.keys(patch).length) return no({ error: 'Nothing to update.' }, 400);
 
-  const { error } = await admin().from('scripts').update(patch).eq('id', id);
+  const { error } = await admin().from('scripts').update({ ...patch, edited_by: me.id }).eq('id', id);
   if (error) return no({ error: 'Update failed.' }, 502);
   return no({ ok: true }, 200);
 }
 
 export async function DELETE(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
+  const me = await requireAdmin(request);
+  if (!me) return no({ error: 'Not authorised.' }, 403);
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return no({ error: 'Missing id.' }, 400);
-  const { error } = await admin().from('scripts').delete().eq('id', id);
+  // 先写上是谁删的:修改记录的删除那条从 edited_by 取人
+  const db = admin();
+  await db.from('scripts').update({ edited_by: me.id }).eq('id', id);
+  const { error } = await db.from('scripts').delete().eq('id', id);
   if (error) return no({ error: 'Delete failed.' }, 502);
   return no({ ok: true }, 200);
 }

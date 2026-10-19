@@ -6,7 +6,7 @@ import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptBody from './ScriptBody';
 import ApplyForm from '@/components/ApplyForm';
 
-type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open';
+type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open' | 'taken';
 
 /**
  * 口播稿正文(付费可见的那种)。
@@ -16,8 +16,9 @@ type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open';
  * 有权限的人在浏览器里带着自己的 token 去 /api/ideas 取,
  * 服务端确认权限后才把那段文字发过来。
  *
- * 四种落点:没登录 → 登录按钮;登录了没权限 → 申请表单;
- * 申请过了 → 等待开通;有权限 → 正文。
+ * 五种落点:没登录 → 登录按钮;登录了没权限 → 申请表单;
+ * 申请过了 → 等待开通;有权限 → 正文;
+ * 这份 Fordexa 稿已被别的合作公司用了 → 说明原因(一份稿子只给一家)。
  */
 export default function ScriptGate({ slug, code }: { slug: string; code: string }) {
   const [state, setState] = useState<State>('loading');
@@ -40,6 +41,8 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
           setScript(body.idea.script as string);
           setAudioUrl(body.idea.audioUrl as string | undefined);
           setState('open');
+        } else if (body?.idea?.taken) {
+          setState('taken');
         } else if (!body?.signedIn) {
           setState('anon');
         } else if (body?.pending) {
@@ -94,6 +97,8 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
     );
   }
 
+  if (state === 'taken') return <TakenNote />;
+
   if (state === 'pending') {
     return (
       <section className="mt-10 rounded-2xl bg-[var(--accent-tint)] p-7">
@@ -111,4 +116,21 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
   }
 
   return <ApplyForm onDone={() => setState('pending')} />;
+}
+
+/** 一份 Fordexa 稿只给一家合作公司用。文章和出处照常公开,想讲这个话题可以自己写 */
+export function TakenNote() {
+  return (
+    <section className="mt-10 rounded-2xl bg-[var(--accent-tint)] p-7">
+      <h2 className="font-display mb-2 text-lg font-semibold">这份口播稿已被其他合作公司使用</h2>
+      <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+        为了不让两家公司讲出一模一样的内容，每份 Fordexa 口播稿只给一家用。
+        上面的文章和参考出处照常可以看；想讲这个话题，可以在
+        <Link className="mx-1 text-[var(--accent)] hover:underline" href="/studio/ideas">
+          口播工作台
+        </Link>
+        里按你们自己的风格生成一份。
+      </p>
+    </section>
+  );
 }

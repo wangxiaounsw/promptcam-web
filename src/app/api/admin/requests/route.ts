@@ -73,7 +73,8 @@ export async function PATCH(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
-  if (!(await requireAdmin(request))) return no({ error: 'Not authorised.' }, 403);
+  const me = await requireAdmin(request);
+  if (!me) return no({ error: 'Not authorised.' }, 403);
 
   let body: { id?: string; title?: string; body?: string };
   try {
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
 
   const { data: script, error: insErr } = await db
     .from('scripts')
-    .insert({ user_id: req.user_id, title, body: text, source: 'fordexa', sort_order: 0 })
+    .insert({ user_id: req.user_id, title, body: text, source: 'fordexa', sort_order: 0, created_by: me.id, edited_by: me.id })
     .select('id')
     .single();
   if (insErr || !script) return no({ error: 'Insert failed.' }, 502);
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
     .update({ status: 'delivered', script_id: script.id })
     .eq('id', id);
   if (updErr) {
+    // 回滚也记上是谁:修改记录的删除那条从 edited_by 取人(插入时已写成管理员)
     await db.from('scripts').delete().eq('id', script.id);
     return no({ error: 'Update failed.' }, 502);
   }

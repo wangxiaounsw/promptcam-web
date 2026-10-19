@@ -1,10 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { admin } from '@/lib/auth';
-import { resolveVoice } from '@/lib/voice';
+import { resolveStudioVoice } from '@/lib/voice';
 import { copyPrivate, existsPrivate, removePrivate } from '@/lib/studio/audio';
-import { ownsPreviewPath, previewHash } from '@/lib/studio/preview';
-import { ensureFordexaVersion, json, ownScript, requireStudioUser } from '@/lib/studio/server';
+import { orgAudioDir, previewHash, previewPathAllowed } from '@/lib/studio/preview';
+import {
+  ensureFordexaVersion,
+  json,
+  requireStudioUser,
+  scriptInScope,
+  versionInScope,
+  type StudioUser,
+} from '@/lib/studio/server';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +19,7 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   const user = await requireStudioUser(request);
   if (!user) return json({ error: 'Not authorised.' }, 403);
-  const script = await ownScript(user.id, request.nextUrl.searchParams.get('scriptId') ?? '');
+  const script = await scriptInScope(user.orgId, request.nextUrl.searchParams.get('scriptId') ?? '');
   if (!script) return json({ error: '找不到这条稿子' }, 404);
 
   await ensureFordexaVersion(script);
@@ -36,40 +43,39 @@ export async function POST(request: NextRequest) {
   } catch {
     return json({ error: 'Bad request.' }, 400);
   }
-  const db = admin();
-  const { data: version } = await db
-    .from('script_versions')
-    .select('id, script_id, body, checks')
-    .eq('id', String(body.versionId ?? ''))
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!version) return json({ error: '找不到这一版' }, 404);
-  const script = await ownScript(user.id, version.script_id);
-  if (!script) return json({ error: '找不到这条稿子' }, 404);
+  const found = await versionInScope(user.orgId, String(body.versionId ?? ''));
+  if (!found) return json({ error: '找不到这一版' }, 404);
+  const { version, script } = found;
 
   // 这一版已经用当前声音念好了：直接拷成正文的试听，省一次合成
-  const audio = await adoptVersionAudio(user.id, script.id, version.id);
-  const { error } = await db
+  const audio = await adoptVersionAudio(user, { id: script.id, orgId: script.org_id! }, version);
+  const { error } = await admin()
     .from('scripts')
-    .update({ body: version.body, checks: version.checks ?? null, ...(audio ? { ...audio, audio_at: new Date().toISOString() } : {}) })
+    .update({
+      body: version.body,
+      checks: version.checks ?? null,
+      edited_by: user.id,
+      ...(audio ? { ...audio, audio_at: new Date().toISOString() } : {}),
+    })
     .eq('id', script.id)
-    .eq('user_id', user.id);
+    .eq('org_id', script.org_id);
   if (error) return json({ error: '保存失败' }, 502);
-  if (audio && ownsPreviewPath(script.audio_path, user.id)) await removePrivate([script.audio_path!]);
+  if (audio && previewPathAllowed(script.audio_path, { orgId: script.org_id, ownerId: script.user_id })) {
+    await removePrivate([script.audio_path!]);
+  }
   return json({ ok: true, audioReady: Boolean(audio) });
 }
 
 async function adoptVersionAudio(
-  userId: string,
-  scriptId: string,
-  versionId: string,
+  user: StudioUser,
+  script: { id: string; orgId: string },
+  version: { id: string; body: string },
 ): Promise<{ audio_path: string; audio_hash: string } | null> {
-  const { voiceId } = await resolveVoice(userId);
-  const from = `audio/${userId}/v-${versionId}-${voiceId}.mp3`;
+  const { voiceId } = await resolveStudioVoice(user);
+  const dir = orgAudioDir(script.orgId);
+  const from = `${dir}/v-${version.id}-${voiceId}.mp3`;
   if (!(await existsPrivate(from))) return null;
-  const { data } = await admin().from('script_versions').select('body').eq('id', versionId).maybeSingle();
-  if (!data) return null;
-  const to = `audio/${userId}/${scriptId}-${randomBytes(6).toString('hex')}.mp3`;
+  const to = `${dir}/${script.id}-${randomBytes(6).toString('hex')}.mp3`;
   if (!(await copyPrivate(from, to))) return null;
-  return { audio_path: to, audio_hash: previewHash(data.body as string, voiceId) };
+  return { audio_path: to, audio_hash: previewHash(version.body, voiceId) };
 }

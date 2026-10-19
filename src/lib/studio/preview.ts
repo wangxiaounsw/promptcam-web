@@ -9,9 +9,18 @@ export function previewHash(body: string, voiceId: string): string {
 }
 
 /**
- * scripts.audio_path 本人能从 App 改（同一张表），不能拿来签别人的文件或删别人的文件：
- * 只认放在自己 audio/<uid>/ 下面的路径。
+ * scripts.audio_path 能从 App 改（同一张表），不能拿来签别家的文件或删别家的文件。
+ * 只认这家公司的 audio/org/<orgId>/，和稿子主人第一期留下的 audio/<uid>/。
  */
-export function ownsPreviewPath(path: string | null | undefined, userId: string): boolean {
-  return Boolean(path) && path!.startsWith(`audio/${userId}/`) && !path!.includes('..');
+export function previewPathAllowed(
+  path: string | null | undefined,
+  a: { orgId: string | null; ownerId: string },
+): boolean {
+  if (!path || path.includes('..')) return false;
+  return (a.orgId !== null && path.startsWith(`audio/org/${a.orgId}/`)) || path.startsWith(`audio/${a.ownerId}/`);
+}
+
+/** 这家公司的试听文件放哪 */
+export function orgAudioDir(orgId: string): string {
+  return `audio/org/${orgId}`;
 }

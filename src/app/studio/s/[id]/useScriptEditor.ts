@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Checks } from '@/lib/studio/checks';
 import { readNdjson } from '@/lib/ndjson';
-import { errorText, send, studioFetch, studioToken, type StudioScript, type Version } from '../../api';
+import { errorText, send, studioFetch, studioHeaders, studioToken, type StudioScript, type Version } from '../../api';
 import { forgetAudio, prepareAudio } from '../../player';
 import { showToast } from '../../ui';
 import type { ScriptPatch } from '../../useScripts';
@@ -100,7 +100,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
         if (!token) throw new Error('请先登录');
         const res = await fetch('/api/studio/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json', ...studioHeaders(token) },
           body: JSON.stringify({ scriptId: id, ...(promptText ? { prompt: promptText } : {}) }),
         });
         // 参数不对等早期错误还是普通 JSON

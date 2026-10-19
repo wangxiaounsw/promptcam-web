@@ -10,8 +10,8 @@ import {
   ensureFordexaVersion,
   json,
   nextVersionNumber,
-  ownScript,
   requireStudioUser,
+  scriptInScope,
   sourceForScript,
 } from '@/lib/studio/server';
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return json({ error: 'Bad request.' }, 400);
   }
-  const script = await ownScript(user.id, String(body.scriptId ?? ''));
+  const script = await scriptInScope(user.orgId, String(body.scriptId ?? ''));
   if (!script) return json({ error: '找不到这条稿子' }, 404);
   if (!script.code) return json({ error: '这条不是从灵感库拉的，没有文章可依据' }, 400);
 
