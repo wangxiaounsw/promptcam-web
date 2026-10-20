@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Checks } from '@/lib/studio/checks';
 import { readNdjson } from '@/lib/ndjson';
 import { errorText, send, studioFetch, studioHeaders, studioToken, type StudioScript, type Version } from '../../api';
-import { forgetAudio, prepareAudio } from '../../player';
+import { forgetAudio } from '../../player';
 import { showToast } from '../../ui';
 import type { ScriptPatch } from '../../useScripts';
 
@@ -132,7 +132,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
         const saved = version;
         setVersions((vs) => [...vs, saved].sort((a, b) => a.n - b.n));
         review({ versionId: saved.id });
-        prepareAudio({ versionId: saved.id });
+        // 不再自动先念:试听稿由人点「生成试听稿」才念,免得点的时候正在念、重复花 Fish 额度
         return saved;
       } catch (e) {
         showToast(errorText(e));
@@ -151,9 +151,8 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
       try {
         await studioFetch('/api/studio/versions', send('POST', { versionId: v.id }));
         setScript({ ...script, body: v.body, checks: v.checks, hasAudio: false });
-        // 这一版念好了的话，服务端已经把音频拿来当正文的试听；没念好就现在念
+        // 这一版念好了的话，服务端已经把音频拿来当正文的试听；没念好就等人点「生成试听稿」
         forgetAudio({ scriptId: id });
-        prepareAudio({ scriptId: id });
         onChanged?.();
         showToast(v.n === 0 ? '已换回 Fordexa 原版' : `正文已换成第 ${v.n} 版`);
       } catch (e) {

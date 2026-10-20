@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { send, studioFetch } from './api';
 
 /**
- * 试听播放器。全页只有一个在播：点另一条的试听，前一条自动停。
- *
- * 还能「提前念」：一版稿子刚生成完就在后台把音频念好（prepare），
- * 等你点试听时直接播。正在念的时候点，就等它念完接着播，不会念第二遍。
+ * 口播库列表里的快捷试听。全页只有一个在播：点另一条的试听，前一条自动停。
+ * 正在念的时候再点，就等它念完接着播，不会念第二遍。
+ * 稿子页里用的是 AudioPreview(能暂停、往回 5 秒、拖进度)，两边开始播时互相让。
  */
 type Target = { scriptId?: string; versionId?: string; force?: boolean };
 type State = { key: string | null; loading: string[]; startedAt: Record<string, number> };
@@ -36,6 +35,9 @@ function element(): HTMLAudioElement {
 
 export const keyOf = (t: Target) => (t.versionId ? `v:${t.versionId}` : `s:${t.scriptId}`);
 
+/** 稿子页的试听稿播放器(AudioPreview)开始播时广播;这里开始播时也广播,两边互相让 */
+export const PREVIEW_PLAY_EVENT = 'studio:preview-play';
+
 /** 取音频链接：有新鲜的直接用；正在念的等它；否则请求接口念 */
 function fetchUrl(target: Target): Promise<string> {
   const key = keyOf(target);
@@ -58,11 +60,6 @@ function fetchUrl(target: Target): Promise<string> {
   return p;
 }
 
-/** 后台先念好，不播。失败不吵（点试听时会再试并报错） */
-export function prepareAudio(target: Target) {
-  fetchUrl(target).catch(() => {});
-}
-
 /** 正文换了（改稿、用了别的版本）：旧链接作废 */
 export function forgetAudio(target: Target) {
   ready.delete(keyOf(target));
@@ -81,6 +78,7 @@ export async function togglePlay(target: Target) {
   const url = await fetchUrl(target);
   const el = element();
   el.src = url;
+  window.dispatchEvent(new CustomEvent(PREVIEW_PLAY_EVENT, { detail: 'list-player' }));
   await el.play();
   set({ ...state, key });
 }

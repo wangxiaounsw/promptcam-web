@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { splitAppendix } from '@/lib/prompt-pick';
+import { diffSentences } from '@/lib/studio/script-diff';
 import type { Version } from '../../api';
-import { PlayButton, Pill, ReplayButton } from '../../ui';
+import AudioPreview from '../../AudioPreview';
+import { Pill } from '../../ui';
 import { useIsDesktop } from '../../useScripts';
 import CheckedBody from './CheckedBody';
 import ChangeLog from './ChangeLog';
@@ -20,29 +22,71 @@ import VersionTabs, { versionLabel, type Tab } from './VersionTabs';
  */
 const SOURCE_NAME = { org: '本公司的提示词', industry: '本行业的提示词', general: '通用提示词', default: '默认骨架' } as const;
 
-function VersionView({ v, checking, onRetry, inUse, onUse }: { v: Version; checking: boolean; onRetry: () => void; inUse: boolean; onUse: () => void }) {
+/** 「和上一版比」:按句子标出改动,删掉的划线标红,新加的标绿,没变的照常 */
+function DiffBody({ before, after }: { before: string; after: string }) {
+  return (
+    <div className="text-[17px] leading-[1.8]">
+      {diffSentences(before, after).map((d, i) =>
+        d.text === '\n' ? (
+          d.kind === 'del' ? null : <br key={i} />
+        ) : (
+          <span
+            key={i}
+            className={d.kind === 'add' ? 'rounded bg-[var(--accent-tint)] text-[var(--accent)]' : d.kind === 'del' ? 'rounded bg-[#FBE9E7] text-[#b3261e] line-through' : ''}
+          >
+            {d.text}
+          </span>
+        ),
+      )}
+    </div>
+  );
+}
+
+function VersionView({
+  v,
+  previous,
+  checking,
+  onRetry,
+  inUse,
+  onUse,
+}: {
+  v: Version;
+  previous: Version | null;
+  checking: boolean;
+  onRetry: () => void;
+  inUse: boolean;
+  onUse: () => void;
+}) {
+  const [compare, setCompare] = useState(false);
   return (
     <div className="rounded-2xl bg-[var(--bg-raised)] p-4">
-      <CheckedBody body={v.body} checks={v.kind === 'generated' ? v.checks : null} checking={checking} onRetry={onRetry} />
+      {previous && (
+        <label className="mb-3 flex h-9 w-fit cursor-pointer items-center gap-2 text-[14px] font-medium text-[var(--accent)]">
+          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+          和上一版比（{versionLabel(previous)}）
+        </label>
+      )}
+      {compare && previous ? (
+        <DiffBody before={previous.body} after={v.body} />
+      ) : (
+        <CheckedBody body={v.body} checks={v.kind === 'generated' ? v.checks : null} checking={checking} onRetry={onRetry} />
+      )}
       {v.appendix && (
         <details className="mt-4">
           <summary className="flex h-11 cursor-pointer items-center text-[15px] font-medium text-[var(--accent)]">每个数字的出处</summary>
           <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl bg-[var(--bg)] p-3 text-[13px] leading-relaxed">{v.appendix}</pre>
         </details>
       )}
-      <div className="mt-4 flex gap-2.5">
-        <PlayButton versionId={v.id} chars={v.body.length} size="wide" />
+      <div className="mt-4 space-y-2.5">
+        <AudioPreview target={{ versionId: v.id }} chars={v.body.length} revision={v.id} />
         <button
           type="button"
           disabled={inUse}
           onClick={onUse}
-          className="h-14 flex-1 rounded-2xl bg-[var(--accent)] text-[17px] font-bold text-white disabled:bg-[var(--accent-tint)] disabled:text-[var(--accent)]"
+          className="h-14 w-full rounded-2xl bg-[var(--accent)] text-[17px] font-bold text-white disabled:bg-[var(--accent-tint)] disabled:text-[var(--accent)]"
         >
           {inUse ? '正在用这版' : '用这版'}
         </button>
-      </div>
-      <div className="flex justify-center">
-        <ReplayButton versionId={v.id} />
       </div>
     </div>
   );
@@ -61,7 +105,7 @@ function Drafting({ text }: { text: string }) {
         {body}
         <span className="ml-0.5 inline-block h-5 w-0.5 animate-pulse bg-[var(--accent)] align-middle" />
       </div>
-      <p className="mt-3 text-[13px] text-[var(--muted)]">写完会自动核对，并用你的声音先念好。</p>
+      <p className="mt-3 text-[13px] text-[var(--muted)]">写完会自动核对；想听就点下面的「生成试听稿」。</p>
     </div>
   );
 }
@@ -118,6 +162,8 @@ export default function ScriptPanel({
   const prevPrompt = selected?.n ? (versions.find((v) => v.n === selected.n - 1)?.prompt ?? null) : null;
   const compare = compareWith ? versions.find((v) => v.id === compareWith) ?? null : null;
   const canGenerate = Boolean(script.code);
+  /** 上一版:编号小一号的那版(第 1 版的上一版是 Fordexa 原稿) */
+  const previousOf = (v: Version) => (v.n > 0 ? versions.find((x) => x.n === v.n - 1) ?? null : null);
 
   const onGenerate = async (text: string) => {
     const v = await ed.generate(text);
@@ -208,29 +254,26 @@ export default function ScriptPanel({
               ) : (
                 <CheckedBody body={script.body} checks={script.checks} checking={ed.reviewing === 'body'} onRetry={() => ed.review({ scriptId: id })} />
               )}
-              <div className="mt-4 flex gap-2.5">
-                {editing ? (
-                  <>
-                    <button type="button" onClick={() => { setDraft(script.body); setEditing(false); }} className="h-14 flex-1 rounded-2xl border-[1.5px] border-[#8A9690] text-[17px] font-medium">取消</button>
-                    <button
-                      type="button"
-                      disabled={ed.busy === 'save' || !draft.trim()}
-                      onClick={async () => { await ed.save({ body: draft }); setEditing(false); }}
-                      className="h-14 flex-1 rounded-2xl bg-[var(--accent)] text-[17px] font-bold text-white disabled:opacity-40"
-                    >
-                      保存
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <PlayButton scriptId={id} chars={script.body.length} size="wide" />
-                    <button type="button" onClick={() => setEditing(true)} className="h-14 flex-1 rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)]">改稿</button>
-                  </>
-                )}
-              </div>
+              {editing ? (
+                <div className="mt-4 flex gap-2.5">
+                  <button type="button" onClick={() => { setDraft(script.body); setEditing(false); }} className="h-14 flex-1 rounded-2xl border-[1.5px] border-[#8A9690] text-[17px] font-medium">取消</button>
+                  <button
+                    type="button"
+                    disabled={ed.busy === 'save' || !draft.trim()}
+                    onClick={async () => { await ed.save({ body: draft }); setEditing(false); }}
+                    className="h-14 flex-1 rounded-2xl bg-[var(--accent)] text-[17px] font-bold text-white disabled:opacity-40"
+                  >
+                    保存
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-2.5">
+                  {script.body.trim() && <AudioPreview target={{ scriptId: id }} chars={script.body.length} revision={script.body} />}
+                  <button type="button" onClick={() => setEditing(true)} className="h-14 w-full rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)]">改稿</button>
+                </div>
+              )}
               {!editing && (
                 <div className="mt-1 flex justify-center gap-4">
-                  <ReplayButton scriptId={id} />
                   {canGenerate && (
                     <button type="button" disabled={ed.reviewing === 'body'} onClick={() => ed.review({ scriptId: id })} className="h-11 px-2 text-[15px] font-medium text-[var(--accent)] disabled:opacity-40">
                       {ed.reviewing === 'body' ? '核对中…' : '重新核对正文'}
@@ -241,9 +284,9 @@ export default function ScriptPanel({
             </div>
           ) : (
             <div className={desktop && compare ? 'grid grid-cols-2 gap-3' : ''}>
-              <VersionView v={selected} checking={ed.reviewing === selected.id} onRetry={() => ed.review({ versionId: selected.id })} inUse={inUse?.id === selected.id} onUse={() => ed.adoptVersion(selected)} />
+              <VersionView key={selected.id} v={selected} previous={previousOf(selected)} checking={ed.reviewing === selected.id} onRetry={() => ed.review({ versionId: selected.id })} inUse={inUse?.id === selected.id} onUse={() => ed.adoptVersion(selected)} />
               {desktop && compare && compare.id !== selected.id && (
-                <VersionView v={compare} checking={ed.reviewing === compare.id} onRetry={() => ed.review({ versionId: compare.id })} inUse={inUse?.id === compare.id} onUse={() => ed.adoptVersion(compare)} />
+                <VersionView key={compare.id} v={compare} previous={previousOf(compare)} checking={ed.reviewing === compare.id} onRetry={() => ed.review({ versionId: compare.id })} inUse={inUse?.id === compare.id} onUse={() => ed.adoptVersion(compare)} />
               )}
             </div>
           )}
