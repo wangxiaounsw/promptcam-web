@@ -12,7 +12,7 @@ import { Toaster } from './ui';
 import { readViewing, writeViewing } from './viewing';
 
 /**
- * 工作台外壳。沿用 App 的三个标签：口播库 / 灵感库 / 我的。
+ * 工作台外壳。沿用 App 的三个标签：口播库 / 灵感库 / 我的，网页多一个「主页预览」。
  * 手机：底部标签栏（同 App 的 NavigationBar）；电脑：顶部一行。
  * 先问一次 /api/studio/me：能不能进、我是谁、正在看哪家公司。
  * 管理员切换公司时整棵内容重挂载 —— 每页都按新公司重新取数据。
@@ -22,6 +22,7 @@ type Gate = 'checking' | 'open' | 'closed';
 const TABS = [
   { href: '/studio', label: '口播库', icon: 'M6 3h9l4 4v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM9 11h6M9 15h6' },
   { href: '/studio/ideas', label: '灵感库', icon: 'M9 18h6M10 21h4M8 14a6 6 0 118 0c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5z' },
+  { href: '/studio/showcase', label: '主页预览', icon: 'M8 3h8a2 2 0 012 2v14a2 2 0 01-2 2H8a2 2 0 01-2-2V5a2 2 0 012-2zM11 18h2' },
   { href: '/studio/me', label: '我的', icon: 'M12 4a4 4 0 110 8 4 4 0 010-8zM4 20c1.5-4 4.5-6 8-6s6.5 2 8 6' },
 ];
 

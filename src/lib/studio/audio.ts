@@ -6,11 +6,12 @@ import { admin } from '@/lib/auth';
  */
 export const PRIVATE_BUCKET = 'studio-private';
 
-export async function putPrivate(path: string, data: Buffer, contentType: string): Promise<void> {
-  // 不让 CDN / 浏览器缓存:一版稿子「再次生成试听稿」是覆盖同一个文件名,缓存了会听到旧的
+export async function putPrivate(path: string, data: Buffer, contentType: string, cacheControl = '0'): Promise<void> {
+  // 默认不让 CDN / 浏览器缓存:一版稿子「再次生成试听稿」是覆盖同一个文件名,缓存了会听到旧的。
+  // 文件名每次都随机、从不覆盖的(主页预览的图)可以放心缓存
   const { error } = await admin()
     .storage.from(PRIVATE_BUCKET)
-    .upload(path, data, { contentType, upsert: true, cacheControl: '0' });
+    .upload(path, data, { contentType, upsert: true, cacheControl });
   if (error) throw new Error(`上传失败: ${error.message}`);
 }
 
