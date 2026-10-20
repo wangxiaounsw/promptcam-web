@@ -1,3 +1,4 @@
+import LoginDialog from '@/components/LoginDialog';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -6,6 +7,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <SiteHeader />
       {children}
       <SiteFooter />
+      <LoginDialog />
     </>
   );
 }

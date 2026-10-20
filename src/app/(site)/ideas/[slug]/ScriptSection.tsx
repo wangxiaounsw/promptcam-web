@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptGate, { TakenNote } from './ScriptGate';
 import ScriptBody from './ScriptBody';
+import PullButton from './PullButton';
 import ReactionBar from '@/components/ReactionBar';
+import type { Ref } from '@/lib/content';
+import { openLogin } from '@/components/LoginDialog';
 
 /**
  * 文章页下面的一条口播:标题 + 编号 + 播放器 + 「展开口播稿」。
@@ -13,12 +16,13 @@ import ReactionBar from '@/components/ReactionBar';
  * 播放器和正文都按权限:没权限显示锁,点了去登录/申请(由 ScriptGate 处理)。
  */
 export default function ScriptSection({
-  slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false, tags = [], industry = null, industryName = null,
-}: { slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean; tags?: string[]; industry?: string | null; industryName?: string | null }) {
+  slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false, tags = [], industry = null, industryName = null, refs = [],
+}: { refs?: Ref[]; slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean; tags?: string[]; industry?: string | null; industryName?: string | null }) {
   const [open, setOpen] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'open' | 'locked' | 'taken'>('loading');
+  const [signedIn, setSignedIn] = useState(false);
   const player = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -31,6 +35,7 @@ export default function ScriptSection({
         const res = await fetch(`/api/ideas?slug=${encodeURIComponent(slug)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
         const body = await res.json();
         if (cancelled) return;
+        setSignedIn(Boolean(body?.signedIn));
         if (body?.idea?.script) { setScript(body.idea.script); setAudioUrl(body.idea.audioUrl ?? null); setState('open'); }
         else setState(body?.idea?.taken ? 'taken' : 'locked');
       } catch { if (!cancelled) setState('locked'); }
@@ -79,12 +84,17 @@ export default function ScriptSection({
         >
           {open ? '收起口播稿 ▴' : '展开口播稿 ▾'}
         </button>
-        {state === 'locked' && (
-          <Link href={`/login?next=${encodeURIComponent(`/ideas/${slug}`)}`} className="text-sm text-[var(--accent)] hover:underline">
-            登录 / 申请开通
+        {state === 'locked' && (signedIn ? (
+          <Link href="/apply" className="text-sm text-[var(--accent)] hover:underline">
+            申请开通
           </Link>
-        )}
+        ) : (
+          <button type="button" onClick={openLogin} className="text-sm text-[var(--accent)] hover:underline">
+            登录 / 申请开通
+          </button>
+        ))}
         {state === 'taken' && <span className="text-sm text-[var(--muted)]">已被其他合作公司使用</span>}
+        {state !== 'loading' && <PullButton code={code} refs={refs} />}
       </div>
 
       {open && (

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { splitAppendix } from '@/lib/prompt-pick';
 import type { Version } from '../../api';
 import { PlayButton, Pill, ReplayButton } from '../../ui';
@@ -15,6 +15,8 @@ import VersionTabs, { versionLabel, type Tab } from './VersionTabs';
 /**
  * 稿子页：改正文、看各版本、就地改提示词再生成、核对、试听。
  * 手机上单独一页（底部有提示词面板）；电脑上嵌在口播库右栏，提示词常驻右边。
+ * drawer：公开文章页的侧栏里用，一列往下排(稿子 → 提示词展开 → 修改记录)，不放排期和「已录」。
+ * autoGenerate：别家已占、刚拉来的空稿子，打开就按这家的提示词生成一版。
  */
 const SOURCE_NAME = { org: '本公司的提示词', industry: '本行业的提示词', general: '通用提示词', default: '默认骨架' } as const;
 
@@ -64,7 +66,19 @@ function Drafting({ text }: { text: string }) {
   );
 }
 
-export default function ScriptPanel({ id, onChanged, embedded }: { id: string; onChanged?: () => void; embedded?: boolean }) {
+export default function ScriptPanel({
+  id,
+  onChanged,
+  embedded,
+  drawer = false,
+  autoGenerate = false,
+}: {
+  id: string;
+  onChanged?: () => void;
+  embedded?: boolean;
+  drawer?: boolean;
+  autoGenerate?: boolean;
+}) {
   const desktop = useIsDesktop();
   const ed = useScriptEditor(id, onChanged);
   const { script, versions, prompt } = ed;
@@ -79,6 +93,15 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
     setEditing(false);
     setCompareWith(null);
   }, [id]);
+
+  // 版本和稿子是一起取回来的，所以看到 script 时 versions 已经是全的，不会误判「还没生成过」
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoGenerate || autoStarted.current || !script?.code || !prompt || ed.busy) return;
+    autoStarted.current = true;
+    if (versions.some((v) => v.kind === 'generated')) return;
+    void ed.generate(prompt.prompt).then((v) => v && setTab(v.id));
+  }, [autoGenerate, script, prompt, versions, ed]);
   useEffect(() => {
     if (script) {
       setDraft(script.body);
@@ -103,7 +126,7 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
 
   const promptPanel = canGenerate && (
     <PromptPanel
-      layout={desktop ? 'column' : 'sheet'}
+      layout={desktop || drawer ? 'column' : 'sheet'}
       base={selected?.prompt ?? prompt.prompt}
       previous={selected?.prompt ? prevPrompt : null}
       sourceLabel={selected?.prompt ? `${versionLabel(selected)}用的提示词` : `现在用的：${prompt.name}（${SOURCE_NAME[prompt.source]}）`}
@@ -116,9 +139,9 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
   );
 
   return (
-    <div className={desktop && canGenerate ? 'grid grid-cols-[minmax(0,1fr)_320px] gap-4' : ''}>
-      <div className={canGenerate && !desktop ? 'pb-24' : ''}>
-        {!embedded && (
+    <div className={desktop && canGenerate && !drawer ? 'grid grid-cols-[minmax(0,1fr)_320px] gap-4' : ''}>
+      <div className={canGenerate && !desktop && !drawer ? 'pb-24' : ''}>
+        {!embedded && !drawer && (
           <Link href="/studio" className="flex h-11 items-center text-[15px] text-[var(--accent)]">‹ 口播库</Link>
         )}
         <input
@@ -130,22 +153,26 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {script.code && <Pill tone="gray">{script.code}</Pill>}
-          <label className="flex h-11 items-center gap-1.5 text-[15px] text-[var(--muted)]">
-            要录完
-            <input
-              type="date"
-              value={script.record_by ?? ''}
-              onChange={(e) => ed.save({ record_by: e.target.value || null })}
-              className="h-11 rounded-xl border-[1.5px] border-[#8A9690] bg-white px-2 text-[15px] text-[var(--ink)]"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => ed.save({ status: script.status === 'recorded' ? 'ready' : 'recorded' })}
-            className={`h-11 rounded-xl px-3 text-[15px] font-bold ${script.status === 'recorded' ? 'bg-[var(--accent-tint)] text-[var(--accent)]' : 'border-[1.5px] border-[var(--accent)] text-[var(--accent)]'}`}
-          >
-            {script.status === 'recorded' ? '✓ 已录（改回待录）' : '标为已录'}
-          </button>
+          {!drawer && (
+            <>
+              <label className="flex h-11 items-center gap-1.5 text-[15px] text-[var(--muted)]">
+                要录完
+                <input
+                  type="date"
+                  value={script.record_by ?? ''}
+                  onChange={(e) => ed.save({ record_by: e.target.value || null })}
+                  className="h-11 rounded-xl border-[1.5px] border-[#8A9690] bg-white px-2 text-[15px] text-[var(--ink)]"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => ed.save({ status: script.status === 'recorded' ? 'ready' : 'recorded' })}
+                className={`h-11 rounded-xl px-3 text-[15px] font-bold ${script.status === 'recorded' ? 'bg-[var(--accent-tint)] text-[var(--accent)]' : 'border-[1.5px] border-[var(--accent)] text-[var(--accent)]'}`}
+              >
+                {script.status === 'recorded' ? '✓ 已录（改回待录）' : '标为已录'}
+              </button>
+            </>
+          )}
         </div>
 
         {canGenerate ? (
@@ -220,7 +247,7 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
               )}
             </div>
           )}
-          {desktop && selected && versions.length > 1 && (
+          {desktop && !drawer && selected && versions.length > 1 && (
             <label className="mt-2 flex h-11 items-center gap-2 text-[14px] text-[var(--muted)]">
               并排对比
               <select value={compareWith ?? ''} onChange={(e) => setCompareWith(e.target.value || null)} className="h-10 rounded-xl border-[1.5px] border-[#8A9690] bg-white px-2 text-[14px] text-[var(--ink)]">
@@ -232,9 +259,10 @@ export default function ScriptPanel({ id, onChanged, embedded }: { id: string; o
             </label>
           )}
         </div>
+        {drawer && promptPanel && <div className="mt-4">{promptPanel}</div>}
         <ChangeLog key={id} scriptId={id} />
       </div>
-      {promptPanel}
+      {!drawer && promptPanel}
     </div>
   );
 }

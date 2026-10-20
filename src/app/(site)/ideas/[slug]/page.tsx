@@ -112,7 +112,7 @@ export default async function IdeaPage({ params }: Props) {
           </h2>
           <div className="space-y-3">
             {idea.children.map((k) => (
-              <ScriptSection key={k.code} {...k} />
+              <ScriptSection key={k.code} {...k} refs={idea.refs} />
             ))}
           </div>
         </section>
@@ -129,8 +129,8 @@ export default async function IdeaPage({ params }: Props) {
         </ScriptBody>
       ) : (
         idea.hasScript && (idea.article
-          ? <ScriptSection slug={idea.slug} code={idea.code} title={idea.title} summary={null} hasAudio={idea.hasAudio} isFree={idea.isFree} likes={idea.likes} saves={idea.saves} standalone />
-          : <ScriptGate slug={idea.slug} code={idea.code} />)
+          ? <ScriptSection slug={idea.slug} code={idea.code} title={idea.title} summary={null} hasAudio={idea.hasAudio} isFree={idea.isFree} likes={idea.likes} saves={idea.saves} refs={idea.refs} standalone />
+          : <ScriptGate slug={idea.slug} code={idea.code} refs={idea.refs} />)
       )}
 
       {idea.refs.length > 0 && (

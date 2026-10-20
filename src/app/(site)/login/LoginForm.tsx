@@ -12,11 +12,13 @@ const primary =
 /**
  * 邮箱验证码为主,密码为辅。验证码不限制注册 —— 路人也可以先有个账号,
  * 登录后看到的是申请表单,那就是一条线索。
+ * 登录页里登录完跳到 next;登录弹窗里传 onDone,登录完留在原页面。
  */
-export default function LoginForm() {
+export default function LoginForm({ onDone }: { onDone?: () => void } = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get('next'));
+  const finish = onDone ?? (() => router.replace(next));
 
   const [mode, setMode] = useState<'code' | 'password'>('code');
   const [email, setEmail] = useState('');
@@ -26,13 +28,14 @@ export default function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  // 已经登录的直接送走
+  // 登录页上已经登录的直接送走(弹窗只在没登录时打开,不用管)
   useEffect(() => {
+    if (onDone) return;
     browserSupabase().then(async (sb) => {
       const { data } = (await sb?.auth.getSession()) ?? { data: null };
       if (data?.session) router.replace(next);
     });
-  }, [router, next]);
+  }, [router, next, onDone]);
 
   const friendly = (m: string) =>
     /rate limit/i.test(m)
@@ -66,7 +69,7 @@ export default function LoginForm() {
     });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
-    router.replace(next);
+    finish();
   };
 
   const signInPassword = async () => {
@@ -80,7 +83,7 @@ export default function LoginForm() {
     });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
-    router.replace(next);
+    finish();
   };
 
   return (

@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptBody from './ScriptBody';
+import PullButton from './PullButton';
 import ApplyForm from '@/components/ApplyForm';
+import type { Ref } from '@/lib/content';
+import { openLogin } from '@/components/LoginDialog';
 
 type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open' | 'taken';
 
@@ -20,7 +23,7 @@ type State = 'loading' | 'anon' | 'locked' | 'pending' | 'open' | 'taken';
  * 申请过了 → 等待开通;有权限 → 正文;
  * 这份 Fordexa 稿已被别的合作公司用了 → 说明原因(一份稿子只给一家)。
  */
-export default function ScriptGate({ slug, code }: { slug: string; code: string }) {
+export default function ScriptGate({ slug, code, refs = [] }: { slug: string; code: string; refs?: Ref[] }) {
   const [state, setState] = useState<State>('loading');
   const [script, setScript] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | undefined>();
@@ -65,10 +68,15 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
 
   if (state === 'open') {
     return (
-      <ScriptBody script={script} code={code} audioUrl={audioUrl}>
-        打开「Fordexa 口播助手」，这条就在行业灵感里，点一下加到口播库就能录 ——
-        不用复制粘贴。
-      </ScriptBody>
+      <>
+        <ScriptBody script={script} code={code} audioUrl={audioUrl}>
+          打开「Fordexa 口播助手」，这条就在行业灵感里，点一下加到口播库就能录 ——
+          不用复制粘贴。
+        </ScriptBody>
+        <div className="mt-4">
+          <PullButton code={code} refs={refs} />
+        </div>
+      </>
     );
   }
 
@@ -88,16 +96,25 @@ export default function ScriptGate({ slug, code }: { slug: string; code: string 
         </Link>
         <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
           已经开通了？{' '}
-          <Link className="text-[var(--accent)] hover:underline" href={`/login?next=${encodeURIComponent(`/ideas/${slug}`)}`}>
+          <button type="button" className="text-[var(--accent)] hover:underline" onClick={openLogin}>
             登录
-          </Link>
+          </button>
           就能看。
         </p>
       </section>
     );
   }
 
-  if (state === 'taken') return <TakenNote />;
+  if (state === 'taken') {
+    return (
+      <>
+        <TakenNote />
+        <div className="mt-4">
+          <PullButton code={code} refs={refs} />
+        </div>
+      </>
+    );
+  }
 
   if (state === 'pending') {
     return (

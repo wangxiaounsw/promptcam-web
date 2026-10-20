@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canEnterStudio, canUseFordexa, pickViewingOrg } from './scope.ts';
+import { canEnterStudio, canUseFordexa, pickViewingOrg, pullAction, pullFallback } from './scope.ts';
 
 test('admin may view any existing org', () => {
   assert.equal(pickViewingOrg({ isAdmin: true, ownOrgId: 'a', requested: 'b', requestedExists: true }), 'b');
@@ -47,4 +47,31 @@ test('on the website a claimed fordexa script shows only to its company and to a
   // 没登录的人也看不到：免费样稿被占了，不然别家退出登录就能看
   assert.equal(fordexaVisible({ claimOrgId: 'a', viewerOrgId: null, isAdmin: false }), false);
   assert.equal(fordexaVisible({ claimOrgId: 'a', viewerOrgId: 'b', isAdmin: true }), true);
+});
+
+test('public page: already in our library opens it instead of pulling a second copy', () => {
+  assert.equal(pullAction({ claim: 'ours', hasScript: true }), 'open');
+  assert.equal(pullAction({ claim: 'taken', hasScript: true }), 'open');
+});
+
+test('public page: an unclaimed Fordexa script can be pulled', () => {
+  assert.equal(pullAction({ claim: undefined, hasScript: false }), 'pull');
+});
+
+test('public page: our claim but the script was archived pulls the original again', () => {
+  assert.equal(pullAction({ claim: 'ours', hasScript: false }), 'pull');
+});
+
+test('public page: claimed by another company offers generating with our own prompt instead', () => {
+  assert.equal(pullAction({ claim: 'taken', hasScript: false }), 'generate');
+});
+
+test('public page: not signed in or not a customer still sees the button, then the apply prompt', () => {
+  assert.equal(pullFallback(401), 'guest');
+  assert.equal(pullFallback(403), 'guest');
+});
+
+test('public page: a server error hides the button instead of telling a customer to apply', () => {
+  assert.equal(pullFallback(502), 'hidden');
+  assert.equal(pullFallback(0), 'hidden');
 });

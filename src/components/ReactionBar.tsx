@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
+import { openLogin } from './LoginDialog';
 
 /** 浏览器的设备 id:点赞按它去重。没有 localStorage 时每次都是新设备,无妨。 */
 export function deviceId(): string {
@@ -30,7 +31,7 @@ async function authHeaders(): Promise<Record<string, string>> {
  */
 export type Mine = { liked: boolean; saved: boolean };
 
-export default function ReactionBar({ code, likes, saves, size = 'md', plain = false, next, mine, onChange }: {
+export default function ReactionBar({ code, likes, saves, size = 'md', plain = false, mine, onChange }: {
   code: string; likes: number; saves: number; size?: 'sm' | 'md'; next?: string;
   /** 列表行用：不画边框，只有图标和数字 */
   plain?: boolean;
@@ -67,7 +68,7 @@ export default function ReactionBar({ code, likes, saves, size = 'md', plain = f
       const r = await fetch('/api/reactions', { method: 'POST', headers: h, body: JSON.stringify({ code, kind, on }) });
       if (r.status === 401) {
         setSaved(!on); setS((v) => v - (on ? 1 : -1));
-        window.location.href = `/login?next=${encodeURIComponent(next ?? window.location.pathname)}`;
+        openLogin();
         return;
       }
       const j = await r.json();
