@@ -1,6 +1,7 @@
 import { admin } from '@/lib/auth';
 import { DEFAULT_PROMPT } from '@/lib/draft-prompt';
 import { pickPrompt, type PromptRow, type PromptSource, type PromptStep } from '@/lib/prompt-pick';
+import { PROMPT_COLUMNS, saveVersion, type NewVersion, type SavedPrompt } from '@/lib/prompt-store';
 
 /**
  * 提示词库（2026-10-17 从 Notion 搬进来，写口播这一步先搬）。
@@ -16,9 +17,9 @@ export type ScriptPrompt = {
   samples: string | null;
 };
 
-const COLUMNS = 'id, step, org_id, industry, name, status, body, note, created_at';
+const COLUMNS = PROMPT_COLUMNS;
 
-export type PromptVersion = PromptRow & { note: string | null; created_at: string };
+export type PromptVersion = SavedPrompt;
 
 async function activeRows(step: PromptStep): Promise<PromptRow[]> {
   const { data } = await admin().from('prompts').select(COLUMNS).eq('step', step).eq('status', 'active');
@@ -41,38 +42,12 @@ export async function scriptPrompt(orgId: string | null, industry?: string | nul
 }
 
 /** 存一版：同一范围（步骤 + 公司 + 行业）里原来启用的改停用，新的一条启用 */
-export async function savePrompt(input: {
-  step: PromptStep;
-  orgId: string | null;
-  industry: string | null;
-  name: string;
-  body: string;
-  note: string | null;
-  userId: string;
-}): Promise<PromptVersion> {
-  const db = admin();
-  let off = db.from('prompts').update({ status: 'inactive' }).eq('step', input.step).eq('status', 'active');
-  // 公司专属的只按公司停(公司换了行业也不会留下两条启用的);不限公司的按行业分
-  if (input.orgId) off = off.eq('org_id', input.orgId);
-  else off = (input.industry ? off.eq('industry', input.industry) : off.is('industry', null)).is('org_id', null);
-  const { error: offErr } = await off;
-  if (offErr) throw new Error('保存失败');
-  const { data, error } = await db
-    .from('prompts')
-    .insert({
-      step: input.step,
-      org_id: input.orgId,
-      industry: input.industry,
-      name: input.name,
-      status: 'active',
-      body: input.body,
-      note: input.note,
-      created_by: input.userId,
-    })
-    .select(COLUMNS)
-    .single();
-  if (error || !data) throw new Error('保存失败');
-  return data as PromptVersion;
+export async function savePrompt(input: Omit<NewVersion, 'status'>): Promise<PromptVersion> {
+  try {
+    return await saveVersion(admin(), input);
+  } catch {
+    throw new Error('保存失败');
+  }
 }
 
 /** 某个范围的历史版本，新的在前 */
