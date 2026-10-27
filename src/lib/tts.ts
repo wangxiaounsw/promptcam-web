@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { admin } from '@/lib/auth';
+import { XIAOXIA_VOICE } from '@/lib/bank-voice';
 
 /**
- * 口播稿朗读:Fish Audio 的「女大学生」声音。
+ * 口播稿朗读:默认是 Fish Audio 的「女大学生」声音(xiaoxia);口播库按行业换声音见 bank-voice.ts。
  * 生成一次存到 Supabase Storage,网站上按权限给链接。
  */
-export const FISH_VOICE = '5c353fdb312f4888836a9a5680099ef0';
+export const FISH_VOICE = XIAOXIA_VOICE;
 export const ttsReady = Boolean(process.env.FISH_API_KEY);
 
 export function scriptHash(script: string): string {

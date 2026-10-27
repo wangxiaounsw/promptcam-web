@@ -43,6 +43,7 @@ type BankIdea = {
   sort_order: number;
   is_active: boolean;
   is_published: boolean;
+  published_at: string | null;
   is_free: boolean;
   audio_url: string | null;
   audio_script_hash: string | null;
@@ -1753,9 +1754,14 @@ function BankEditor({
           <span className={idea.is_free ? 'text-[var(--accent)]' : ''}>免费样稿</span>
         </label>
         <div className="flex-1" />
-        <button className={btnGhost} onClick={onToggleActive}>
-          {idea.is_active ? '在 App 里下架' : '在 App 里上架'}
-        </button>
+        {/* 审稿草稿(没上架、没发布过)不给上架开关:库的读权限只看 is_active,一上架客户就读得到没审完的稿子。走审稿页发布 */}
+        {!idea.is_active && !idea.is_published && !idea.published_at ? (
+          <a className="text-sm text-[var(--muted)] hover:underline" href={`/review/${(idea.code ?? '').toLowerCase()}`}>审稿草稿</a>
+        ) : (
+          <button className={btnGhost} onClick={onToggleActive}>
+            {idea.is_active ? '在 App 里下架' : '在 App 里上架'}
+          </button>
+        )}
         <button className={btnGhost} onClick={onDelete}>
           删除
         </button>

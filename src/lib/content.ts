@@ -113,6 +113,8 @@ type Row = {
   parent_id?: string | null;
   like_count?: number | null;
   save_count?: number | null;
+  is_published?: boolean | null;
+  is_active?: boolean | null;
 };
 
 function parseRefs(raw: unknown): Ref[] {
@@ -350,18 +352,69 @@ export async function getPublished(
       .eq('is_active', true)
       .order('code');
     const hidden = await hiddenCodes(((kids ?? []) as Row[]).map((k) => k.code), viewer);
-    pub.children = ((kids ?? []) as Row[]).map((k) => ({
-      code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
-      hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
-      likes: k.like_count ?? 0, saves: k.save_count ?? 0,
-      tags: Array.isArray(k.tags) ? k.tags : [], industry: k.industry,
-      industryName: k.industry ? (names.get(k.industry) ?? k.industry) : null,
-      ...(hidden.has(k.code ?? '') ? { taken: true } : {}),
-      ...((allowed || k.is_free) && !hidden.has(k.code ?? '') && k.script ? { script: k.script } : {}),
-      ...((allowed || k.is_free) && !hidden.has(k.code ?? '') && audioReady(k) ? { audioUrl: k.audio_url! } : {}),
-    }));
+    pub.children = ((kids ?? []) as Row[]).map((k) => toChild(k, names, allowed, hidden.has(k.code ?? '')));
   }
   return pub;
+}
+
+function toChild(k: Row, names: Map<string, string>, allowed: boolean, taken: boolean): ChildIdea {
+  const show = (allowed || Boolean(k.is_free)) && !taken;
+  return {
+    code: k.code ?? '', slug: k.slug ?? (k.code ?? '').toLowerCase(), title: k.title, summary: k.summary,
+    hasScript: Boolean(k.script), hasAudio: audioReady(k), isFree: Boolean(k.is_free),
+    likes: k.like_count ?? 0, saves: k.save_count ?? 0,
+    tags: Array.isArray(k.tags) ? k.tags : [], industry: k.industry,
+    industryName: k.industry ? (names.get(k.industry) ?? k.industry) : null,
+    ...(taken ? { taken: true } : {}),
+    ...(show && k.script ? { script: k.script } : {}),
+    ...(show && audioReady(k) ? { audioUrl: k.audio_url! } : {}),
+  };
+}
+
+/**
+ * 审稿状态:published = 公开页能看到;draft = 还没发过(审稿脚本写进来的,is_active 也是 false,
+ * 客户直接读库也读不到);offline = 发过又撤下了。
+ */
+export type ReviewStatus = 'published' | 'draft' | 'offline';
+
+function reviewStatus(row: Row): ReviewStatus {
+  if (row.is_published && row.is_active) return 'published';
+  return row.published_at ? 'offline' : 'draft';
+}
+
+export type ReviewChild = ChildIdea & { status: ReviewStatus };
+export type ReviewIdea = Omit<PublicIdea, 'children'> & { status: ReviewStatus; children: ReviewChild[] };
+
+/**
+ * 审稿页:按编号或 slug 取一篇(发没发布都取)和它下面全部口播(含草稿),正文和朗读都给。
+ * 只给管理员接口用 —— 这里不查权限。
+ */
+export async function getForReview(key: string): Promise<ReviewIdea | null> {
+  if (!configured) return null;
+  const k = key.toLowerCase();
+  const db = admin();
+  const cols = `${SELECT}, is_published, is_active`;
+  const [{ data }, names] = await Promise.all([
+    db.from('idea_bank').select(cols).or(`slug.eq.${k},code.eq.${k.toUpperCase()}`).maybeSingle(),
+    industryNames(),
+  ]);
+  let row = (data as Row | null) ?? null;
+  // 给的是某条口播的编号:审它所在的那篇文章
+  if (row?.parent_id) {
+    const { data: parent } = await db.from('idea_bank').select(cols).eq('id', row.parent_id).maybeSingle();
+    row = (parent as Row | null) ?? null;
+  }
+  if (!row?.id) return null;
+  const { data: kids } = await db
+    .from('idea_bank')
+    .select(`${SELECT}, is_published, is_active`)
+    .eq('parent_id', row.id)
+    .order('code');
+  return {
+    ...toPublic(row, names, true),
+    status: reviewStatus(row),
+    children: ((kids ?? []) as Row[]).map((c) => ({ ...toChild(c, names, true, false), status: reviewStatus(c) })),
+  };
 }
 
 /**

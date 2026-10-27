@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import ScriptGate, { TakenNote } from './ScriptGate';
 import ScriptBody from './ScriptBody';
@@ -17,15 +17,31 @@ import { openLogin } from '@/components/LoginDialog';
  */
 export default function ScriptSection({
   slug, code, title, summary, hasAudio, isFree, likes = 0, saves = 0, standalone = false, tags = [], industry = null, industryName = null, refs = [],
-}: { refs?: Ref[]; slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean; tags?: string[]; industry?: string | null; industryName?: string | null }) {
-  const [open, setOpen] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [script, setScript] = useState<string | null>(null);
-  const [state, setState] = useState<'loading' | 'open' | 'locked' | 'taken'>('loading');
+  preloaded, badge,
+}: {
+  refs?: Ref[]; slug: string; code: string; title: string; summary: string | null; hasAudio: boolean; isFree: boolean; likes?: number; saves?: number; standalone?: boolean; tags?: string[]; industry?: string | null; industryName?: string | null;
+  /** 审稿页:正文和试听已经拿到了,不再按权限去取;稿子默认展开,不显示点赞和「加到口播库」 */
+  preloaded?: { script: string | null; audioUrl: string | null };
+  /** 审稿页:标题旁的状态牌(草稿 / 已发布) */
+  badge?: ReactNode;
+}) {
+  const [open, setOpen] = useState(Boolean(preloaded));
+  const [audioUrl, setAudioUrl] = useState<string | null>(preloaded?.audioUrl ?? null);
+  const [script, setScript] = useState<string | null>(preloaded?.script ?? null);
+  const [state, setState] = useState<'loading' | 'open' | 'locked' | 'taken'>(preloaded ? 'open' : 'loading');
   const [signedIn, setSignedIn] = useState(false);
   const player = useRef<HTMLAudioElement | null>(null);
+  const reviewing = Boolean(preloaded);
 
+  const preScript = preloaded?.script ?? null;
+  const preAudio = preloaded?.audioUrl ?? null;
   useEffect(() => {
+    if (reviewing) {
+      // 审稿页刷新后稿子或试听换了,跟着换
+      setScript(preScript);
+      setAudioUrl(preAudio);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -41,7 +57,7 @@ export default function ScriptSection({
       } catch { if (!cancelled) setState('locked'); }
     })();
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, reviewing, preScript, preAudio]);
 
   return (
     <section id={code.toLowerCase()} className="rounded-2xl bg-[var(--bg-raised)] p-5">
@@ -49,7 +65,8 @@ export default function ScriptSection({
         <span className="font-mono text-xs text-[var(--muted)]">{code}</span>
         {isFree && <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-medium text-white">免费样稿</span>}
         <h3 className="font-display min-w-0 flex-1 text-base font-semibold leading-snug">{title}</h3>
-        {!standalone && <ReactionBar code={code} likes={likes} saves={saves} size="sm" next={`/ideas/${slug}`} />}
+        {badge}
+        {!standalone && !reviewing && <ReactionBar code={code} likes={likes} saves={saves} size="sm" next={`/ideas/${slug}`} />}
       </div>
       {summary && <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{summary}</p>}
       {/* 行业 + 标签:点了去口播库按它筛 */}
@@ -70,8 +87,9 @@ export default function ScriptSection({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {hasAudio && state === 'open' && audioUrl && (
-          <audio ref={player} controls preload="none" src={audioUrl} className="h-9 min-w-0 flex-1" />
+          <audio key={audioUrl} ref={player} controls preload="none" src={audioUrl} className="h-9 min-w-0 flex-1" />
         )}
+        {reviewing && !audioUrl && <span className="text-sm text-[var(--muted)]">还没生成试听</span>}
         {hasAudio && state === 'locked' && (
           <span className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="6" width="9" height="7" rx="1.5" /><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" /></svg>
@@ -94,12 +112,14 @@ export default function ScriptSection({
           </button>
         ))}
         {state === 'taken' && <span className="text-sm text-[var(--muted)]">已被其他合作公司使用</span>}
-        {state !== 'loading' && <PullButton code={code} refs={refs} />}
+        {state !== 'loading' && !reviewing && <PullButton code={code} refs={refs} />}
       </div>
 
       {open && (
         state === 'open' && script ? (
           <ScriptBody script={script} code={code} />
+        ) : reviewing ? (
+          <p className="mt-4 text-sm text-[var(--muted)]">这条还没有稿子。</p>
         ) : state === 'taken' ? (
           <TakenNote />
         ) : (

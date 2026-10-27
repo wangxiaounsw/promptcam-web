@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, configured, requireAdmin } from '@/lib/auth';
 import { scriptHash, storeAudio, synthesize, ttsReady } from '@/lib/tts';
+import { bankVoice } from '@/lib/bank-voice';
 import { revalidateIdea } from '@/lib/content';
 
 export const runtime = 'nodejs';
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
   const db = admin();
   const { data: idea } = await db
     .from('idea_bank')
-    .select('code, slug, script, audio_url, audio_script_hash, is_published')
+    .select('code, slug, industry, script, audio_url, audio_script_hash, is_published')
     .eq('id', id)
     .maybeSingle();
   if (!idea) return no({ error: 'Not found.' }, 404);
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const mp3 = await synthesize(script);
+    const mp3 = await synthesize(script, bankVoice(idea.industry));
     const url = await storeAudio(idea.code ?? id, mp3, idea.audio_url ?? null);
     const { error } = await db
       .from('idea_bank')
