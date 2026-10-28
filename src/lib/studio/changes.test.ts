@@ -23,3 +23,26 @@ test('status', () => {
   assert.equal(describeChange({ action: 'update', field: 'status', old: 'recorded', new: 'ready' }), '标回了待录');
   assert.equal(describeChange({ action: 'update', field: 'status', old: 'ready', new: 'archived' }), '移出了口播库');
 });
+
+test('publish_on and stage in plain words', () => {
+  assert.equal(describeChange({ action: 'update', field: 'publish_on', old: '2026-11-03', new: '2026-11-06' }), '把发布日期从 11/3 改到 11/6');
+  assert.equal(describeChange({ action: 'update', field: 'publish_on', old: null, new: '2026-11-03' }), '排到 11/3 发布');
+  assert.equal(describeChange({ action: 'update', field: 'publish_on', old: '2026-11-03', new: null }), '取消了发布日期');
+  assert.equal(describeChange({ action: 'update', field: 'stage', old: 'refining', new: 'final' }), '进度：精修中 → 定稿');
+  assert.equal(describeChange({ action: 'update', field: 'stage', old: 'cut', new: 'published' }), '标成已发布');
+});
+
+test('content fields, stats and notes', () => {
+  const u = (field: string, o: string | null, n: string | null) => describeChange({ action: 'update', field, old: o, new: n });
+  assert.equal(u('xhs_title', 'a', 'b'), '改了小红书标题');
+  assert.equal(u('xhs_body', 'a', 'b'), '改了小红书正文');
+  assert.equal(u('media_url', null, 'https://x'), '贴了成片链接');
+  assert.equal(u('media_url', 'https://x', null), '清掉了成片链接');
+  assert.equal(u('likes', '0', '12000'), '赞 0 → 12000');
+  assert.equal(u('saves', null, '5'), '藏 0 → 5');
+  assert.equal(u('note', null, '一条备注'), '加了一条备注');
+  assert.equal(u('note', '一条备注', null), '删了一条备注');
+  assert.equal(u('kind', 'video', 'image'), '改成了图文');
+  assert.equal(u('is_extra', 'false', 'true'), '标成了热点');
+  assert.equal(u('nonsense', 'a', 'b'), '改了这条稿子');
+});

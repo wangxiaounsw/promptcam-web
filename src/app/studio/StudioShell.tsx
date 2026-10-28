@@ -9,7 +9,8 @@ import FeedbackSheet from './FeedbackSheet';
 import { OrgSelect, ViewingBanner } from './OrgSwitcher';
 import { MeContext, type StudioMeContext } from './studio-me';
 import { Toaster } from './ui';
-import { readViewing, writeViewing } from './viewing';
+import { bindUser, prefetchMonth } from './calendar/monthStore';
+import { pathAfterSwitch, readViewing, writeViewing } from './viewing';
 
 /**
  * 工作台外壳。沿用 App 的三个标签：口播库 / 灵感库 / 我的，网页多一个「主页预览」。
@@ -20,6 +21,7 @@ import { readViewing, writeViewing } from './viewing';
 type Gate = 'checking' | 'open' | 'closed';
 
 const TABS = [
+  { href: '/studio/calendar', label: '日历', icon: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z' },
   { href: '/studio', label: '口播库', icon: 'M6 3h9l4 4v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM9 11h6M9 15h6' },
   { href: '/studio/ideas', label: '灵感库', icon: 'M9 18h6M10 21h4M8 14a6 6 0 118 0c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5z' },
   { href: '/studio/showcase', label: '主页预览', icon: 'M8 3h8a2 2 0 012 2v14a2 2 0 01-2 2H8a2 2 0 01-2-2V5a2 2 0 012-2zM11 18h2' },
@@ -35,6 +37,7 @@ function Icon({ d }: { d: string }) {
 }
 
 function isActive(pathname: string, href: string): boolean {
+  // 日历是自己的标签：/studio/calendar 不算口播库
   if (href === '/studio') return pathname === '/studio' || pathname.startsWith('/studio/s/');
   return pathname.startsWith(href);
 }
@@ -52,6 +55,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
       const data = await studioFetch<StudioMe>('/api/studio/me');
       // 存着的公司无效时服务端回落到自己的公司：把本地也改过来
       if (data.orgs && data.viewing && readViewing() !== data.viewing.id) writeViewing(data.viewing.id);
+      bindUser(data.me.id); // 换了登录的人就丢掉上一个人的日历缓存
       setMe(data);
       setGate('open');
     } catch (e) {
@@ -61,6 +65,8 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   useEffect(() => {
+    // 直接进日历：本月数据和 /me 同时开始取，不等 /me 回来（页面挂载后接上这个请求）
+    if (pathname.startsWith('/studio/calendar')) prefetchMonth(null);
     (async () => {
       if (!(await studioToken())) {
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -73,14 +79,15 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   }, []);
 
   const switchTo = useCallback(
-    (orgId: string) => {
+    (orgId: string, next = pathAfterSwitch(pathname)) => {
       writeViewing(orgId);
       setMe(null);
       setGate('checking');
-      router.push('/studio');
+      router.push(next);
+      if (next.startsWith('/studio/calendar')) prefetchMonth(null); // 深链接切公司：同样和 /me 并行
       loadMe();
     },
-    [loadMe, router],
+    [loadMe, router, pathname],
   );
 
   const openFeedback = useCallback(() => setFeedback(true), []);

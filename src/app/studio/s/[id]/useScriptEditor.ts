@@ -24,6 +24,7 @@ export type PromptInfo = {
  */
 export function useScriptEditor(id: string, onChanged?: () => void) {
   const [script, setScript] = useState<StudioScript | null>(null);
+  const [industry, setIndustry] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
   const [prompt, setPrompt] = useState<PromptInfo | null>(null);
@@ -34,7 +35,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
   const load = useCallback(async () => {
     try {
       const [list, p] = await Promise.all([
-        studioFetch<{ scripts: StudioScript[] }>('/api/studio/scripts'),
+        studioFetch<{ scripts: StudioScript[]; industry: string | null }>('/api/studio/scripts'),
         studioFetch<PromptInfo>('/api/studio/prompt'),
       ]);
       const s = list.scripts.find((x) => x.id === id) ?? null;
@@ -42,6 +43,7 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
       const v = s?.code ? (await studioFetch<{ versions: Version[] }>(`/api/studio/versions?scriptId=${id}`)).versions : [];
       setVersions(v);
       setPrompt(p);
+      setIndustry(list.industry ?? null);
       setScript(s);
       setMissing(!s);
     } catch (e) {
@@ -54,6 +56,11 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
     load();
   }, [load]);
 
+  /** 日历接口回来的排期结果（含触发器重算的 record_by）直接合进稿子，页面立刻显示 */
+  const applyServer = useCallback((patch: Pick<StudioScript, 'publish_on' | 'record_by' | 'stage'>) => {
+    setScript((s) => (s ? { ...s, ...patch } : s));
+  }, []);
+
   const save = useCallback(
     async (change: ScriptPatch) => {
       if (!script) return;
@@ -61,7 +68,14 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
       try {
         await studioFetch('/api/studio/scripts', send('PATCH', { id, ...change }));
         const bodyChanged = change.body !== undefined && change.body !== script.body;
-        setScript({ ...script, ...change, ...(bodyChanged ? { checks: null, hasAudio: false } : {}) });
+        if (change.status !== undefined) {
+          // 改状态后触发器可能顺带改了进度（或拒绝了改动），以库里为准，不在本地硬合并
+          const list = await studioFetch<{ scripts: StudioScript[] }>('/api/studio/scripts');
+          const fresh = list.scripts.find((x) => x.id === id);
+          setScript(fresh ?? { ...script, ...change });
+        } else {
+          setScript({ ...script, ...change, ...(bodyChanged ? { checks: null, hasAudio: false } : {}) });
+        }
         if (bodyChanged) forgetAudio({ scriptId: id });
         onChanged?.();
       } catch (e) {
@@ -172,5 +186,5 @@ export function useScriptEditor(id: string, onChanged?: () => void) {
     }
   }, []);
 
-  return { script, missing, versions, prompt, busy, reviewing, drafting, save, generate, review, adoptVersion, savePrompt, reload: load };
+  return { script, industry, missing, versions, prompt, busy, reviewing, drafting, save, applyServer, generate, review, adoptVersion, savePrompt, reload: load };
 }

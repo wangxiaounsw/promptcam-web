@@ -11,6 +11,8 @@ import { useIsDesktop } from '../../useScripts';
 import CheckedBody from './CheckedBody';
 import ChangeLog from './ChangeLog';
 import PromptPanel from './PromptPanel';
+import RecordControls from './RecordControls';
+import ScheduleRow from './ScheduleRow';
 import { useScriptEditor } from './useScriptEditor';
 import VersionTabs, { versionLabel, type Tab } from './VersionTabs';
 
@@ -146,12 +148,15 @@ export default function ScriptPanel({
     if (versions.some((v) => v.kind === 'generated')) return;
     void ed.generate(prompt.prompt).then((v) => v && setTab(v.id));
   }, [autoGenerate, script, prompt, versions, ed]);
+  // 只在换稿子或正文/标题真的变了才同步；排期、录完日期、状态这类元数据更新不冲掉没存的修改
+  const scriptId = script?.id;
+  const scriptBody = script?.body;
+  const scriptTitle = script?.title;
   useEffect(() => {
-    if (script) {
-      setDraft(script.body);
-      setTitle(script.title);
-    }
-  }, [script]);
+    if (scriptId === undefined) return;
+    setDraft(scriptBody ?? '');
+    setTitle(scriptTitle ?? '');
+  }, [scriptId, scriptBody, scriptTitle]);
 
   if (ed.missing) return <p className="mt-10 text-center text-[var(--muted)]">找不到这条稿子（可能已归档或删除）。</p>;
   if (!script || !prompt) return <div className="mt-4 h-64 animate-pulse rounded-2xl bg-[var(--row-line)]" />;
@@ -201,22 +206,8 @@ export default function ScriptPanel({
           {script.code && <Pill tone="gray">{script.code}</Pill>}
           {!drawer && (
             <>
-              <label className="flex h-11 items-center gap-1.5 text-[15px] text-[var(--muted)]">
-                要录完
-                <input
-                  type="date"
-                  value={script.record_by ?? ''}
-                  onChange={(e) => ed.save({ record_by: e.target.value || null })}
-                  className="h-11 rounded-xl border-[1.5px] border-[#8A9690] bg-white px-2 text-[15px] text-[var(--ink)]"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => ed.save({ status: script.status === 'recorded' ? 'ready' : 'recorded' })}
-                className={`h-11 rounded-xl px-3 text-[15px] font-bold ${script.status === 'recorded' ? 'bg-[var(--accent-tint)] text-[var(--accent)]' : 'border-[1.5px] border-[var(--accent)] text-[var(--accent)]'}`}
-              >
-                {script.status === 'recorded' ? '✓ 已录（改回待录）' : '标为已录'}
-              </button>
+              <RecordControls script={script} onSave={ed.save} />
+              <ScheduleRow script={script} industry={ed.industry} onApply={ed.applyServer} onChanged={onChanged} />
             </>
           )}
         </div>

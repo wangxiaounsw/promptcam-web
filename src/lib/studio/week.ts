@@ -28,7 +28,7 @@ function noon(day: DayKey): Date {
   return new Date(`${day}T12:00:00Z`);
 }
 
-function addDays(day: DayKey, n: number): DayKey {
+export function addDays(day: DayKey, n: number): DayKey {
   const d = noon(day);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);

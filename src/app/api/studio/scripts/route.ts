@@ -14,30 +14,34 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export async function GET(request: NextRequest) {
   const user = await requireStudioUser(request);
   if (!user) return json({ error: 'Not authorised.' }, 403);
-  if (!user.orgId) return json({ today: melbourneDay(new Date()), scripts: [] });
+  if (!user.orgId) return json({ today: melbourneDay(new Date()), industry: null, scripts: [] });
 
   const db = admin();
   const { data, error } = await db
     .from('scripts')
-    .select(SCRIPT_COLUMNS)
+    .select(`${SCRIPT_COLUMNS}, publish_on, stage, kind`)
     .eq('org_id', user.orgId)
     .neq('status', 'archived')
     .order('created_at', { ascending: false });
   if (error) return json({ error: '读取失败' }, 502);
-  const rows = (data ?? []) as ScriptRow[];
+  // publish_on/stage/kind 是 v3 迁移加的新列，SCRIPT_COLUMNS 不含，这里单独带上
+  const rows = (data ?? []) as unknown as (ScriptRow & { publish_on: string | null; stage: string; kind: string })[];
 
-  const [{ voiceId }, versions, people] = await Promise.all([
+  const [{ voiceId }, versions, people, org] = await Promise.all([
     resolveStudioVoice(user),
     rows.length
       ? db.from('script_versions').select('script_id').in('script_id', rows.map((r) => r.id)).then((r) => r.data ?? [])
       : Promise.resolve([] as { script_id: string }[]),
     peopleById(rows.map((r) => r.created_by)),
+    db.from('organizations').select('industry').eq('id', user.orgId).maybeSingle().then((r) => (r.data as { industry: string | null } | null)?.industry ?? null),
   ]);
   const count = new Map<string, number>();
   for (const v of versions) count.set(v.script_id, (count.get(v.script_id) ?? 0) + 1);
 
   return json({
     today: melbourneDay(new Date()),
+    // 行业整家公司一个，已录的叫法（data 行业叫「已配音」）按它变
+    industry: org,
     scripts: rows.map((r) => ({
       ...r,
       research: researchMarks(r.body).length,

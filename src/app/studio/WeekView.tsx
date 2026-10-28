@@ -6,6 +6,7 @@ import { needsReview, pendingCount } from '@/lib/studio/checks';
 import { dayLabel, daysBetween, groupWeek, shiftWeek, weekLabel, weekOf } from '@/lib/studio/week';
 import type { StudioScript } from './api';
 import { Byline } from './Avatar';
+import StageTag from './StageTag';
 import { PlayButton, Pill } from './ui';
 import type { ScriptPatch } from './useScripts';
 
@@ -16,10 +17,14 @@ import type { ScriptPatch } from './useScripts';
 type Props = {
   scripts: StudioScript[];
   today: string;
+  industry: string | null;
   selectedId?: string | null;
   onOpen?: (id: string) => void;
   onPatch: (id: string, change: ScriptPatch) => void;
 };
+
+/** 'YYYY-MM-DD' → 'M/D' */
+const publishLabel = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
 
 function Flags({ s }: { s: StudioScript }) {
   const pending = pendingCount(s.checks);
@@ -62,7 +67,11 @@ function Row({ s, props, extra }: { s: StudioScript; props: Props; extra?: React
       <OpenLink id={s.id} onOpen={props.onOpen} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 py-1.5 pl-4">
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={`truncate text-base font-medium ${done ? 'line-through' : ''}`}>{s.title}</span>
-          <Byline person={s.createdBy} />
+          <span className="flex items-center gap-2">
+            <Byline person={s.createdBy} />
+            <span className="text-[12px] text-[var(--muted)]">{s.publish_on ? `发布 ${publishLabel(s.publish_on)}` : '未定发布日'}</span>
+            <StageTag stage={s.stage} industry={props.industry} />
+          </span>
         </span>
         <Flags s={s} />
       </OpenLink>

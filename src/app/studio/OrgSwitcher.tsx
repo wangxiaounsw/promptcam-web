@@ -47,7 +47,7 @@ export function ViewingBanner() {
         }`}
       >
         <span className="min-w-0 flex-1 truncate">
-          {other ? `你正在看：${ctx.viewing.name} 的口播库` : `正在看：${ctx.viewing.name}`}
+          {other ? `你正在看：${ctx.viewing.name}` : `正在看：${ctx.viewing.name}`}
         </span>
         <button
           type="button"

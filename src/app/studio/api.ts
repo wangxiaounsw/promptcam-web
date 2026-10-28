@@ -2,6 +2,7 @@
 
 import { browserSupabase } from '@/lib/browser-supabase';
 import type { Checks } from '@/lib/studio/checks';
+import type { PostKind, Stage } from '@/lib/studio/posts';
 import { readViewing } from './viewing';
 
 /** 工作台的接口都带登录 token；非 2xx 抛 Error，消息就是接口给的中文 */
@@ -53,6 +54,10 @@ export type StudioScript = {
   status: ScriptStatus;
   code: string | null;
   record_by: string | null;
+  /** 日历上的发布日期('YYYY-MM-DD')，没排期是 null */
+  publish_on: string | null;
+  stage: Stage;
+  kind: PostKind;
   checks: Checks | null;
   created_at: string;
   research: number;

@@ -21,6 +21,12 @@ export function readViewing(): string | null {
   return tabOrg;
 }
 
+/** 切公司后去哪：留在当前这个标签（在日历就还是日历）。稿子页属于原来那家公司，回口播库 */
+export function pathAfterSwitch(pathname: string): string {
+  if (!pathname || pathname.startsWith('/studio/s/')) return '/studio';
+  return pathname;
+}
+
 export function writeViewing(id: string | null): void {
   tabOrg = id;
   try {

@@ -10,12 +10,14 @@ export type ScriptPatch = Partial<Pick<StudioScript, 'title' | 'body' | 'status'
 export function useScripts() {
   const [scripts, setScripts] = useState<StudioScript[] | null>(null);
   const [today, setToday] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const data = await studioFetch<{ scripts: StudioScript[]; today: string }>('/api/studio/scripts');
+      const data = await studioFetch<{ scripts: StudioScript[]; today: string; industry: string | null }>('/api/studio/scripts');
       setScripts(data.scripts);
       setToday(data.today);
+      setIndustry(data.industry ?? null);
     } catch (e) {
       showToast(errorText(e));
     }
@@ -38,7 +40,7 @@ export function useScripts() {
     [reload],
   );
 
-  return { scripts, today, reload, patch };
+  return { scripts, today, industry, reload, patch };
 }
 
 /** 电脑宽度（≥1024）下口播库是左右两栏 */
