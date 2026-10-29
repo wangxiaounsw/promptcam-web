@@ -10,9 +10,16 @@ type Voice = { voiceId: string; from: 'me' | 'org' | 'default' };
 const FROM = { me: '我的声音', org: '公司的声音', default: '默认声音' };
 const MAX_MB = 20;
 
-async function playUrl(url: string) {
+/** 念完才返回：按钮一直显示「播放中…」，不然一秒多的句子念完了人还没反应过来 */
+async function playUrl(url: string, onPlaying?: () => void) {
   const a = new Audio(url);
+  const done = new Promise<void>((resolve, reject) => {
+    a.addEventListener('ended', () => resolve(), { once: true });
+    a.addEventListener('error', () => reject(new Error('音频放不出来')), { once: true });
+  });
   await a.play();
+  onPlaying?.();
+  await done;
 }
 
 export default function VoiceCard() {
@@ -37,7 +44,8 @@ export default function VoiceCard() {
     }
   };
 
-  const test = () => run('test', async () => playUrl((await studioFetch<{ url: string }>('/api/studio/voice', send('POST', {}))).url));
+  const test = () =>
+    run('test', async () => playUrl((await studioFetch<{ url: string }>('/api/studio/voice', send('POST', {}))).url, () => setBusy('playing')));
   const saveId = (voiceId: string | null) =>
     run('save', async () => {
       setVoice(await studioFetch<Voice>('/api/studio/voice', send('PUT', { voiceId })));
@@ -74,7 +82,7 @@ export default function VoiceCard() {
       </div>
       {voice && <p className="break-all text-[13px] text-[var(--muted)]">{voice.voiceId}</p>}
       <button type="button" disabled={!voice || busy !== null} onClick={test} className="mt-3 h-14 w-full rounded-2xl border-[1.5px] border-[var(--accent)] text-[17px] font-bold text-[var(--accent)] disabled:opacity-40">
-        {busy === 'test' ? '生成中…' : '念一句试试'}
+        {busy === 'test' ? '生成中…' : busy === 'playing' ? '播放中…（你好，这是我的声音）' : '念一句试试'}
       </button>
 
       <details className="mt-3">
