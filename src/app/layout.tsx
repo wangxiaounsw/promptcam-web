@@ -33,8 +33,9 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
-      <body className={`${display.variable} ${body.variable}`}>
+    // 翻译、截图之类的浏览器插件会往 html / body 上加属性,别为这个报水合错误(只管这一层)
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
         {children}
       </body>
     </html>

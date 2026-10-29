@@ -14,6 +14,29 @@ export type Account =
 
 const SIGNED_OUT = { email: null, isAdmin: false, canStudio: false, name: null, avatarUrl: null };
 
+type AccountData = { isAdmin?: boolean; canStudio?: boolean; name?: string | null; avatarUrl?: string | null } | null;
+
+/**
+ * 页头、手机菜单都用这个 hook,每个又会在拿到会话和会话事件时各问一次 ——
+ * 同一个 token 一分钟内只真正请求一次,大家共用结果;换了 token(登录 / 刷新)或过了一分钟才重新问
+ * (工作台里改了名字头像,切回站点页头一分钟内会换上)。
+ */
+const SHARE_MS = 60_000;
+let shared: { token: string; at: number; data: Promise<AccountData> } | null = null;
+
+function fetchAccount(token: string): Promise<AccountData> {
+  if (shared?.token === token && Date.now() - shared.at < SHARE_MS) return shared.data;
+  const data = fetch('/api/account', { headers: { Authorization: `Bearer ${token}` } })
+    .then((res) => (res.ok ? (res.json() as Promise<AccountData>) : null))
+    .catch((e: unknown) => {
+      // 失败的不留着,下次再问
+      if (shared?.token === token) shared = null;
+      throw e;
+    });
+  shared = { token, at: Date.now(), data };
+  return data;
+}
+
 export function useAccount(): Account {
   const [account, setAccount] = useState<Account>(undefined);
 
@@ -23,8 +46,7 @@ export function useAccount(): Account {
     const load = async (token: string | null, email: string | null) => {
       if (!token) return setAccount(SIGNED_OUT);
       try {
-        const res = await fetch('/api/account', { headers: { Authorization: `Bearer ${token}` } });
-        const data = res.ok ? await res.json() : null;
+        const data = await fetchAccount(token);
         if (cancelled) return;
         setAccount({
           email,
