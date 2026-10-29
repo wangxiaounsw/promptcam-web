@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserSupabase } from '@/lib/browser-supabase';
 import { renderArticle } from '@/lib/article';
 import type { ReviewIdea, ReviewStatus } from '@/lib/content';
+import type { ReviewFacts } from '@/lib/review-facts';
+import FactsSection from './FactsSection';
 import { openLogin } from '@/components/LoginDialog';
 import ScriptSection from '../../ideas/[slug]/ScriptSection';
 import { IdeaHeader, RefList } from '../../ideas/[slug]/IdeaParts';
@@ -13,6 +15,8 @@ type State = 'loading' | 'anon' | 'forbidden' | 'missing' | 'error' | 'ok';
 
 /** 打开着就每隔几秒取一次:Claude 改了稿子或重做了试听,这边自己换上,不用手动刷新 */
 const POLL_MS = 4000;
+/** 截图签名链接 1 小时过期,50 分钟重签一次 */
+const RESIGN_MS = 50 * 60 * 1000;
 
 const STATUS: Record<ReviewStatus, { label: string; cls: string }> = {
   draft: { label: '草稿', cls: 'bg-amber-100 text-amber-800' },
@@ -33,9 +37,13 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
 export default function ReviewView({ slug }: { slug: string }) {
   const [state, setState] = useState<State>('loading');
   const [idea, setIdea] = useState<ReviewIdea | null>(null);
+  const [facts, setFacts] = useState<ReviewFacts | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const last = useRef('');
   const seq = useRef(0);
+  /** 手上这份事实核对的版本和签名时间;轮询时截图链接不重签,版本变了或链接快过期(1 小时)才带签名再取 */
+  const factsAt = useRef<string | null | undefined>(undefined);
+  const signedAt = useRef(0);
 
   const load = useCallback(async () => {
     // 前一次还没回来又发了一次:只认最后发出的那次,慢的旧结果不许盖掉新的
@@ -45,21 +53,37 @@ export default function ReviewView({ slug }: { slug: string }) {
       const { data } = (await sb?.auth.getSession()) ?? { data: null };
       const token = data?.session?.access_token;
       if (!token) return setState('anon');
-      const res = await fetch(`/api/admin/review?key=${encodeURIComponent(slug)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
+      const get = async (sign: boolean) => {
+        const res = await fetch(`/api/admin/review?key=${encodeURIComponent(slug)}${sign ? '' : '&sign=0'}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        return { res, body: res.ok ? ((await res.json()) as { idea: ReviewIdea; facts: ReviewFacts | null }) : null };
+      };
+      // 第一次带签名取;之后只轮询内容,事实核对换了版本才再带签名取一次
+      const stale = Date.now() - signedAt.current > RESIGN_MS;
+      let { res, body } = await get(stale);
+      let signed = stale;
+      if (body && !signed && (body.facts?.updatedAt ?? null) !== factsAt.current) {
+        ({ res, body } = await get(true));
+        signed = true;
+      }
       if (res.status === 403) return setState('forbidden');
       if (res.status === 404) return setState('missing');
-      if (!res.ok) return setState('error');
-      const text = await res.text();
+      if (!res.ok || !body) return setState('error');
       if (mine !== seq.current) return;
+      factsAt.current = body.facts?.updatedAt ?? null;
+      if (signed) signedAt.current = Date.now();
+      // 截图的签名链接每次都不一样,比内容时不算它,否则每 4 秒都「已更新」
+      const text = JSON.stringify({ idea: body.idea, facts: body.facts?.updatedAt ?? null });
       if (text !== last.current) {
         // 第一次不算「更新」,之后内容变了才亮一下
         if (last.current) setUpdatedAt(new Date());
         last.current = text;
-        setIdea((JSON.parse(text) as { idea: ReviewIdea }).idea);
+        setIdea(body.idea);
       }
+      // 没签名的那份只用来比版本,不拿来换掉手上带截图链接的
+      if (signed) setFacts(body.facts);
       setState('ok');
     } catch {
       setState((s) => (s === 'ok' ? s : 'error'));
@@ -100,11 +124,14 @@ export default function ReviewView({ slug }: { slug: string }) {
     <main className="mx-auto max-w-2xl px-6 pb-24 pt-14">
       {/* 贴在站点顶栏(h-14 / sm:h-16)下面,往下滚也看得到 */}
       <div className="sticky top-16 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50/95 px-4 py-2.5 text-sm text-amber-900 shadow-sm backdrop-blur sm:top-[72px]">
-        <span className="font-semibold">审稿</span>
+        <Link href="/review" className="font-semibold text-amber-900 hover:underline">← 待审稿</Link>
         <span>文章 <StatusBadge status={idea.status} /></span>
         <span>口播 {idea.children.length} 条{drafts ? `（${drafts} 条草稿）` : ''}</span>
         {idea.children.length > 0 && (
           <a href="#scripts" className="font-medium text-amber-900 underline underline-offset-2">跳到口播 ↓</a>
+        )}
+        {facts && (
+          <a href="#facts" className="font-medium text-amber-900 underline underline-offset-2">事实核对 {facts.facts.length} 条 ↓</a>
         )}
         <span className="text-amber-800/80">要改哪里直接跟 Claude 说；说「发布」就上线并更新 Notion</span>
         {updatedAt && (
@@ -145,6 +172,8 @@ export default function ReviewView({ slug }: { slug: string }) {
           </div>
         </section>
       )}
+
+      {facts && <FactsSection data={facts} />}
 
       <RefList refs={idea.refs} />
     </main>

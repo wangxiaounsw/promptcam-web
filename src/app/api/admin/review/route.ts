@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { configured, requireAdmin } from '@/lib/auth';
 import { getForReview } from '@/lib/content';
+import { loadReviewFacts } from '@/lib/review-facts';
 
 export const runtime = 'nodejs';
 
@@ -8,8 +9,9 @@ const no = (body: object, status: number) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
 /**
- * 审稿页取数:一篇文章 + 下面全部口播(含没发布的草稿),正文和试听都给。只给管理员。
+ * 审稿页取数:一篇文章 + 下面全部口播(含没发布的草稿),正文和试听都给;有事实核对就一起给。只给管理员。
  * GET /api/admin/review?key=fx-0028(编号或 slug)
+ * &sign=0:截图不签链接(轮询用,只比 facts.updatedAt)
  */
 export async function GET(request: NextRequest) {
   if (!configured) return no({ error: 'Server not configured.' }, 503);
@@ -17,7 +19,14 @@ export async function GET(request: NextRequest) {
   const key = (request.nextUrl.searchParams.get('key') ?? '').trim().toLowerCase();
   // 进 PostgREST 的 or() 过滤串,只放编号 / slug 会用到的字符
   if (!/^[a-z0-9-]{1,160}$/.test(key)) return no({ error: 'Bad key.' }, 400);
-  const idea = await getForReview(key);
+  const sign = request.nextUrl.searchParams.get('sign') !== '0';
+  // 给的多半就是文章编号:事实核对和稿子同时取;给的是口播编号 / slug 才等文章找到再取
+  const guess = /^fx-\d{4}$/.test(key) ? key.toUpperCase() : null;
+  const [idea, guessed] = await Promise.all([
+    getForReview(key),
+    guess ? loadReviewFacts(guess, { sign }) : Promise.resolve(null),
+  ]);
   if (!idea) return no({ error: 'Not found.' }, 404);
-  return no({ idea }, 200);
+  const facts = idea.code === guess ? guessed : await loadReviewFacts(idea.code, { sign });
+  return no({ idea, facts }, 200);
 }

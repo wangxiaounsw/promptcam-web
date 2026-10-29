@@ -417,6 +417,58 @@ export async function getForReview(key: string): Promise<ReviewIdea | null> {
   };
 }
 
+export type ReviewListItem = {
+  code: string;
+  slug: string | null;
+  title: string;
+  industryName: string | null;
+  status: ReviewStatus;
+  /** 这篇下面还没发布过的口播 */
+  draftScripts: number;
+  /** 最近一条草稿(文章或口播)放进来的时间,排序用 */
+  updatedAt: string | null;
+};
+
+/**
+ * 审稿列表:还没发布过的文章,和下面有没发布过的口播的文章,新放进来的在前。
+ * 只给管理员接口用 —— 这里不查权限。
+ */
+export async function listForReview(): Promise<ReviewListItem[]> {
+  if (!configured) return [];
+  const db = admin();
+  const cols = 'id, code, slug, title, industry, parent_id, published_at, is_published, is_active, created_at';
+  const [{ data }, names] = await Promise.all([
+    db.from('idea_bank').select(cols).is('published_at', null),
+    industryNames(),
+  ]);
+  type ListRow = Row & { created_at: string | null };
+  const drafts = ((data ?? []) as ListRow[]).filter((r) => reviewStatus(r) === 'draft');
+  const scripts = drafts.filter((r) => r.parent_id);
+  // 口播草稿挂在已发布的文章下面:文章不在草稿里,单独取
+  const known = new Set(drafts.map((r) => r.id));
+  const missing = [...new Set(scripts.map((r) => r.parent_id!).filter((id) => !known.has(id)))];
+  const parents = missing.length
+    ? (((await db.from('idea_bank').select(cols).in('id', missing)).data ?? []) as ListRow[])
+    : [];
+  const articles = [...drafts.filter((r) => !r.parent_id), ...parents];
+  return articles
+    .filter((a) => a.code)
+    .map((a) => {
+      const kids = scripts.filter((s) => s.parent_id === a.id);
+      const times = [a, ...kids].map((r) => r.created_at ?? '').sort();
+      return {
+        code: a.code!,
+        slug: a.slug,
+        title: a.title,
+        industryName: a.industry ? names.get(a.industry) ?? a.industry : null,
+        status: reviewStatus(a),
+        draftScripts: kids.length,
+        updatedAt: times[times.length - 1] || null,
+      };
+    })
+    .sort((x, y) => (y.updatedAt ?? '').localeCompare(x.updatedAt ?? '') || y.code.localeCompare(x.code));
+}
+
 /**
  * 后台改了会影响公开页面的东西(发布/撤下/免费/朗读/删除)就调一下,
  * 列表和详情页立刻重新生成 —— 否则要等 ISR 的 10 分钟,

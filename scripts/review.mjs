@@ -5,18 +5,22 @@
 //   node --env-file=.env.local scripts/review.mjs show    <文章编号>                  列出文章和口播的状态
 //   node --env-file=.env.local scripts/review.mjs publish <文章编号> [--only FX-0029,FX-0030]   发布草稿 + 回写 Notion
 //   node --env-file=.env.local scripts/review.mjs sync    <文章编号>                  只把已发布的回写 Notion（publish 中途 Notion 出错时补）
-// 稿子.json：{ "article": "FX-0028" 或 {title, summary, industry, refs, file, notion_page},
+//   node --env-file=.env.local scripts/review.mjs facts   <文章编号> <工作底稿.md>     事实核对：官网原句截图标黄，和事实表一起放进审稿页
+// 稿子.json：{ "article": "FX-0028" 或 {title, summary, industry, refs, file, notion_page}, "facts"?: 工作底稿.md（draft 完顺手跑 facts）,
 //             "scripts": [{ title, summary, industry?, tags?, refs?, file 或 script, notion_page?, is_free? }] }
 // 文件路径相对 json 所在目录。写的是线上库；发布永远只在 Shawn 说「发布」时跑。
 // draft 不碰已发布的口播；已发布的要改用 set（改完会刷新网站）。
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import os from 'node:os';
 import { createClient } from '@supabase/supabase-js';
 import { bankVoice } from '../src/lib/bank-voice.ts';
 import {
   SITE, articleProps, mergeNotionBody, normKey, normalizeScript, scriptHash, scriptProps, scriptToNotion,
 } from './review-lib.mjs';
+import { parseFacts } from './facts-lib.mjs';
+import { shootFacts } from './fact-shot.mjs';
 
 const NOTION_SCRIPTS_DS = 'c2d5c9f2-2d22-47ca-839b-44ae900914ab';
 const NOTION_ARTICLES_DS = 'cc3c631a-87cd-46ed-a14a-cf46faf5641a';
@@ -209,6 +213,7 @@ async function cmdDraft(file) {
     }
     await ensureAudio(row);
   }
+  if (spec.facts) await writeFacts(art, path.resolve(base, spec.facts));
   console.log(`${SITE}/review/${(art.slug ?? art.code).toLowerCase()}`);
 }
 
@@ -335,6 +340,55 @@ async function cmdSync(key) {
   console.error('✓ Notion 已和网站对齐');
 }
 
+// 事实核对：私有桶 fact-check/<编号>/ 放 facts.json 和 <n>.png，网站审稿页（只给管理员）读它
+const FACTS_BUCKET = 'fact-check';
+
+async function ensureFactsBucket() {
+  const { data } = await db.storage.getBucket(FACTS_BUCKET);
+  if (data) return;
+  const { error } = await db.storage.createBucket(FACTS_BUCKET, { public: false });
+  if (error && !/exist/i.test(error.message)) throw new Error(`建桶 ${FACTS_BUCKET} 失败：${error.message}`);
+}
+
+async function writeFacts(art, mdFile) {
+  const parsed = parseFacts(fs.readFileSync(mdFile, 'utf8'));
+  if (!parsed.facts.length) throw new Error(`${mdFile} 里没读到事实（要有「## 事实表」和「### N. …」）`);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `facts-${art.code}-`));
+  console.error(`事实核对 ${art.code}：${parsed.facts.length} 条，开始截图`);
+  const shots = await shootFacts(parsed.facts, tmp, console.error);
+  await ensureFactsBucket();
+  const store = db.storage.from(FACTS_BUCKET);
+  const facts = [];
+  for (const f of parsed.facts) {
+    const r = shots[f.n];
+    let shot = { ok: false, reason: r.reason ?? '没截到' };
+    if (r.ok) {
+      const file = `${f.n}.png`;
+      const { error } = await store.upload(`${art.code}/${file}`, fs.readFileSync(path.join(tmp, file)), { contentType: 'image/png', upsert: true });
+      shot = error ? { ok: false, reason: `截到了但上传失败：${error.message}` } : { ok: true, file, url: r.url, found: r.found };
+    }
+    facts.push({ n: f.n, claim: f.claim, quote: f.quote, source: f.source, urls: f.urls, ...(f.urlsFrom ? { urlsFrom: f.urlsFrom } : {}), published: f.published, key: f.key, shot });
+  }
+  // 上一版有、这一版没截到的旧图删掉，免得页面上配错图
+  const keep = new Set(facts.filter((f) => f.shot.ok).map((f) => f.shot.file));
+  const { data: old } = await store.list(art.code);
+  const stale = (old ?? []).map((o) => o.name).filter((n) => n.endsWith('.png') && !keep.has(n));
+  if (stale.length) await store.remove(stale.map((n) => `${art.code}/${n}`));
+  const json = JSON.stringify({ updatedAt: new Date().toISOString(), title: parsed.title, warnings: parsed.warnings, missing: parsed.missing, facts }, null, 1);
+  const { error } = await store.upload(`${art.code}/facts.json`, Buffer.from(json), { contentType: 'application/json', upsert: true });
+  if (error) throw new Error(`事实表上传失败：${error.message}`);
+  fs.rmSync(tmp, { recursive: true, force: true });
+  console.error(`✓ 事实核对：${facts.length} 条，${keep.size} 条有截图`);
+}
+
+async function cmdFacts(key) {
+  const md = rest[0];
+  if (!md || !fs.existsSync(md)) throw new Error('用法：facts <文章编号> <工作底稿.md>');
+  const art = await byKey(key, { article: true });
+  await writeFacts(art, md);
+  console.log(`${SITE}/review/${(art.slug ?? art.code).toLowerCase()}#facts`);
+}
+
 const commands = {
   draft: () => cmdDraft(target),
   set: () => cmdSet(target),
@@ -342,10 +396,11 @@ const commands = {
   show: () => cmdShow(target),
   publish: () => cmdPublish(target),
   sync: () => cmdSync(target),
+  facts: () => cmdFacts(target),
 };
 
 if (!commands[cmd] || !target) {
-  console.error('用法见文件开头：draft / set / audio / show / publish / sync');
+  console.error('用法见文件开头：draft / set / audio / show / publish / sync / facts');
   process.exit(1);
 }
 try {
