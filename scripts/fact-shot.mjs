@@ -60,11 +60,20 @@ function markInPage(snippets) {
       r.setStart(sp.node, sp.start);
       r.setEnd(sp.node, sp.end);
       const m = document.createElement('mark');
+      m.dataset.factShot = '1';
       m.style.cssText = 'background:#FFE14D;color:inherit;padding:0 1px;border-radius:2px';
       r.surroundContents(m);
       marks.push(m);
     }
     const first = marks[marks.length - 1];
+    // 原句在没展开的标签页 / 折叠块里（ABS 的 CPI groups 就是），先把它所在的隐藏祖先都显示出来，不然截到的是空白
+    for (let el = first; el && el !== document.body; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      if (el.hidden) el.hidden = false;
+      if (cs.display === 'none') el.style.setProperty('display', 'block', 'important');
+      if (cs.visibility === 'hidden') el.style.setProperty('visibility', 'visible', 'important');
+      if (cs.maxHeight === '0px' || (cs.height === '0px' && cs.overflow === 'hidden')) { el.style.setProperty('max-height', 'none', 'important'); el.style.setProperty('height', 'auto', 'important'); }
+    }
     const block = first.closest('p, li, td, th, dd, dt, blockquote, h1, h2, h3, h4, figcaption, tr') ?? first.parentElement;
     block.scrollIntoView({ block: 'center' });
     const rects = marks.map((m) => m.getBoundingClientRect());
@@ -78,6 +87,23 @@ function markInPage(snippets) {
     return { found: snip, top, bottom, markTop: Math.min(...rects.map((r) => r.top)) + window.scrollY };
   }
   return null;
+}
+
+/** 展开隐藏区块有过渡动画：等一会儿后按已经包好的 <mark> 重新量一次截图区域 */
+function remeasure() {
+  const marks = [...document.querySelectorAll('mark[data-fact-shot]')];
+  if (!marks.length) return null;
+  const first = marks[0];
+  const block = first.closest('p, li, td, th, dd, dt, blockquote, h1, h2, h3, h4, figcaption, tr') ?? first.parentElement;
+  block.scrollIntoView({ block: 'center' });
+  const rects = marks.map((m) => m.getBoundingClientRect());
+  const b = block.getBoundingClientRect();
+  const head = [...document.querySelectorAll('h1, h2, h3, h4')]
+    .filter((h) => h.getBoundingClientRect().bottom <= b.top + 1 && b.top - h.getBoundingClientRect().top < 300)
+    .pop();
+  const top = Math.min(head ? head.getBoundingClientRect().top : b.top, ...rects.map((r) => r.top)) + window.scrollY;
+  const bottom = Math.max(b.bottom, ...rects.map((r) => r.bottom)) + window.scrollY;
+  return { top, bottom, markTop: Math.min(...rects.map((r) => r.top)) + window.scrollY };
 }
 
 async function hideClutter(page) {
@@ -110,6 +136,8 @@ export async function shootOne(browser, { urls, quotes }, out) {
       await hideClutter(page);
       const hit = await page.evaluate(markInPage, snippets);
       if (!hit) { lastReason = '页面上没找到原句'; continue; }
+      await page.waitForTimeout(900);
+      Object.assign(hit, await page.evaluate(remeasure));
       const pad = 32;
       let y = Math.max(0, hit.top - pad);
       let h = hit.bottom - hit.top + pad * 2;
