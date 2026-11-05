@@ -62,6 +62,8 @@ export function SiteFooter() {
         <nav className="flex flex-wrap gap-6">
           <Link className="hover:text-[var(--ink)]" href="/how">怎么运作</Link>
           <Link className="hover:text-[var(--ink)]" href="/ideas">口播库</Link>
+          {/* 风格库只从页脚进（2026-11-05 Shawn 定），页头不放；页面本身仍 noindex、不进 sitemap */}
+          <Link className="hover:text-[var(--ink)]" href="/library">风格库</Link>
           <Link className="hover:text-[var(--ink)]" href="/apply">申请开通</Link>
           <Link className="hover:text-[var(--ink)]" href="/privacy">隐私政策</Link>
           <Link className="hover:text-[var(--ink)]" href="/terms">使用条款</Link>

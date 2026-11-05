@@ -81,7 +81,7 @@
 **不被搜索引擎收录**
 - 页面 metadata 设 `robots: noindex, nofollow`。
 - `robots.ts` **不** disallow `/library`（2026-11-04 审稿后改：被 robots.txt 挡住的页面爬虫不会抓，也就读不到 noindex，链接被公开转发时反而可能以裸网址被收录）。
-- 不进 sitemap，网站上任何地方都不链接它。
+- 不进 sitemap。入口只有全站页脚的「风格库」（2026-11-05 Shawn 改：原来是哪里都不链接），页头和首页正文不放。
 
 **收尾**
 - 正式版上线后，删掉草稿：`src/app/studio/library/`、`public/library-draft/`，还有 xhs-video 的 `tmp/library-draft/`。
