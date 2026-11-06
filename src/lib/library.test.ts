@@ -49,8 +49,8 @@ test('parseManifest reads tags, added and tagGroups; old manifests still work', 
   assert.equal(parseManifest({ version: 1, items: [item('K01', '模板封面', { added: '昨天' })] }).ok, false);
 });
 
-test('GROUP_ORDER is the six groups in page order', () => {
-  assert.deepEqual(GROUP_ORDER, ['模板封面', '实拍封面', '转场', '口播效果', '素材卡片', '版式件']);
+test('GROUP_ORDER is the seven groups in page order', () => {
+  assert.deepEqual(GROUP_ORDER, ['模板封面', '实拍封面', '转场', '口播效果', '素材卡片', '版式件', '整条版式']);
 });
 
 test('mediaUrl builds public path', () => {

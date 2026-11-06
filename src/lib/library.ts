@@ -5,7 +5,7 @@
  */
 
 export const LIBRARY_BUCKET = 'style-library';
-export const GROUP_ORDER = ['模板封面', '实拍封面', '转场', '口播效果', '素材卡片', '版式件'] as const;
+export const GROUP_ORDER = ['模板封面', '实拍封面', '转场', '口播效果', '素材卡片', '版式件', '整条版式'] as const;
 const REVALIDATE_SECONDS = 300;
 
 export type LibraryItem = {

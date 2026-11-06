@@ -3,7 +3,7 @@ import { fetchLibrary, mediaUrl } from '@/lib/library';
 import LibraryGrid, { type GridItem } from './LibraryGrid';
 
 /**
- * 风格库：王小墨的封面、转场、口播效果、素材卡片、版式件，每个一个固定编号。
+ * 风格库：王小墨的封面、转场、口播效果、素材卡片、版式件、整条版式，每个一个固定编号。
  * 不用登录，有链接就能看；不收录（这里 noindex；robots.ts 故意不挡 /library，否则爬虫读不到 noindex；不进 sitemap、不从别处链接）。
  * 数据见 src/lib/library.ts。
  */
